@@ -1,0 +1,53 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Java / Maven build output
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven wrapper jar
+.mvn/wrapper/maven-wrapper.jar
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse / STS
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# Keep nested source build folders if a tool creates them intentionally
+!**/src/main/**/target/
+!**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
