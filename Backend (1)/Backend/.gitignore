@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Local planning/runbook docs (do not push)
+MAMACARE_PRD_ALIGNMENT_AND_IMPLEMENTATION_GUIDE.txt
+PREGNANCY_SETUP_HOME_SUMMARY_FEATURE_GUIDE.txt
+PREGNANCY_FEATURE_TEST_RUNBOOK.txt
