@@ -1,0 +1,1989 @@
+MAMACARE WALK & EXERCISE FEATURE - PRO GRADE BUILD GUIDE
+=========================================================
+
+Read this first:
+- This is a backend build guide for the Walk & Exercise screen.
+- Do not paste everything randomly. Build one feature section at a time.
+- Every code block has CODE EXPLANATION directly after it.
+- The mobile app will run on Android and iOS, so the backend must not pretend to read phone sensors directly.
+- Android should read Health Connect / device data.
+- iOS should read HealthKit / device data.
+- The backend receives clean session summaries: duration, steps, distance, calories, and source session id.
+
+
+=========================================================
+FIRST DECISION - JAVA OR REACT NATIVE?
+=========================================================
+
+Short answer:
+- The backend feature is Java Spring Boot.
+- If your mobile app is React Native, the mobile feature is JavaScript/TypeScript plus native Android/iOS health bridges.
+- HealthKit on iOS is not Java. It is Swift or Objective-C.
+- Health Connect on Android can be Java or Kotlin, but most modern Android examples use Kotlin.
+- The Java backend does not directly read HealthKit or Health Connect.
+
+What you build in this backend repo:
+1. Java Spring Boot entities.
+2. Java Spring Boot repositories.
+3. Java Spring Boot DTOs.
+4. Java Spring Boot service.
+5. Java Spring Boot controller.
+6. Java MockMvc tests.
+
+What belongs in the mobile app later:
+1. React Native screen UI if your app is React Native.
+2. Android Health Connect permission and metric reader.
+3. iOS HealthKit permission and metric reader.
+4. Offline sync queue.
+5. Retry worker.
+6. API calls to this Java backend.
+
+If your app is React Native:
+- The main screen code will be TypeScript or JavaScript.
+- Android Health Connect can be handled by a React Native library or a custom native Android module.
+- iOS HealthKit can be handled by a React Native library or a custom native iOS module.
+- The backend Java API in this guide still stays the same.
+
+If you are building only Java right now:
+- Build FILE 1 to FILE 12 in this guide.
+- Do not try to put HealthKit inside Spring Boot.
+- Do not try to put phone step counting inside Spring Boot.
+- Spring Boot stores and returns the walking data that mobile sends.
+
+
+=========================================================
+JAVA BACKEND A-Z PROCESS
+=========================================================
+
+Start from:
+C:\Users\user\Desktop\MamaCare\Backend (1)\Backend
+
+Step 1 - Create folders:
+
+New-Item -ItemType Directory -Force -Path "src/main/java/com/Mamacare/Backend/WalkExercisePackage/Controller"
+New-Item -ItemType Directory -Force -Path "src/main/java/com/Mamacare/Backend/WalkExercisePackage/DTOs"
+New-Item -ItemType Directory -Force -Path "src/main/java/com/Mamacare/Backend/WalkExercisePackage/Entity"
+New-Item -ItemType Directory -Force -Path "src/main/java/com/Mamacare/Backend/WalkExercisePackage/Enums"
+New-Item -ItemType Directory -Force -Path "src/main/java/com/Mamacare/Backend/WalkExercisePackage/Repo"
+New-Item -ItemType Directory -Force -Path "src/main/java/com/Mamacare/Backend/WalkExercisePackage/Service"
+
+CODE EXPLANATION:
+- These commands create the exact package folders for the Java backend.
+- Controller exposes HTTP endpoints.
+- DTOs define request and response JSON.
+- Entity defines database tables.
+- Enums define fixed values.
+- Repo contains Spring Data JPA repositories.
+- Service contains business rules.
+
+Step 2 - Paste enum files:
+- FILE 1: WalkSessionStatus.java
+- FILE 2: WalkSourcePlatform.java
+
+Step 3 - Compile:
+
+.\mvnw.cmd -DskipTests compile
+
+CODE EXPLANATION:
+- Compile early so you catch package or import mistakes before adding more files.
+
+Step 4 - Paste entity files:
+- FILE 3: WalkSession.java
+- FILE 4: WalkGoalSetting.java
+
+Step 5 - Compile again:
+
+.\mvnw.cmd -DskipTests compile
+
+Step 6 - Paste repository files:
+- FILE 5: WalkSessionRepo.java
+- FILE 6: WalkGoalSettingRepo.java
+
+Step 7 - Compile again:
+
+.\mvnw.cmd -DskipTests compile
+
+Step 8 - Paste DTO files:
+- FILE 7: StartWalkSessionRequest.java
+- FILE 8: SyncWalkSessionMetricsRequest.java
+- FILE 9: WalkSessionResponse.java
+- FILE 10: WalkHomeResponse.java
+
+Step 9 - Compile again:
+
+.\mvnw.cmd -DskipTests compile
+
+Step 10 - Paste service:
+- FILE 11: WalkExerciseService.java
+
+Step 11 - Compile again:
+
+.\mvnw.cmd -DskipTests compile
+
+Step 12 - Paste controller:
+- FILE 12: WalkExerciseController.java
+
+Step 13 - Compile again:
+
+.\mvnw.cmd -DskipTests compile
+
+Step 14 - Test endpoints:
+- Use Feature 7 Postman tests.
+- Login first.
+- Send Bearer token.
+- Test /home, /sessions, /metrics, and /complete.
+
+Step 15 - Add Java MockMvc tests:
+- Use Feature 8 test skeleton.
+- Run the test command inside that section.
+
+CODE EXPLANATION:
+- This is the complete Java backend process.
+- Every health metric the backend stores comes from mobile JSON.
+- The Java backend does not care whether mobile collected the data using Android Health Connect, iOS HealthKit, or manual timer fallback.
+- That separation is what makes the backend safe for Android and iOS deployment.
+
+Screen this supports:
+- Walk Session
+- Today's Goal, for example 10 / 15 min
+- Start Walk
+- Current walking state
+- Time
+- Steps
+- Distance
+- Calories
+- Why walking is good
+- Best time to walk
+- Audio motivation in supported MVP languages
+
+Backend design:
+- WalkSession stores one walking session.
+- WalkGoalSetting stores a user's daily walk goal.
+- The mobile app owns live sensor reading.
+- The backend owns user identity, history, summaries, progress, and safe API contracts.
+
+Important mobile note:
+- Android: use Health Connect records such as StepsRecord, DistanceRecord, calories records, and exercise session records.
+- iOS: use HealthKit types like stepCount, distanceWalkingRunning, activeEnergyBurned, and workout/session APIs.
+- The backend should store sourcePlatform and sourceSessionId to avoid saving the same mobile session twice.
+
+References checked:
+- Android Health Connect steps:
+  https://developer.android.com/health-and-fitness/health-connect/features/steps
+- Android StepsRecord:
+  https://developer.android.com/reference/android/health/connect/datatypes/StepsRecord
+- Android DistanceRecord:
+  https://developer.android.com/reference/android/health/connect/datatypes/DistanceRecord
+- Apple HealthKit stepCount:
+  https://developer.apple.com/documentation/healthkit/hkquantitytypeidentifier/stepcount
+- Apple HealthKit distanceWalkingRunning:
+  https://developer.apple.com/documentation/healthkit/hkquantitytypeidentifier/1615230-distancewalkingrunning
+- Spring MVC validation:
+  https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-validation.html
+- Spring Data JPA query methods:
+  https://docs.spring.io/spring-data/jpa/reference/3.5/jpa/query-methods.html
+
+
+=========================================================
+API CONTRACT
+=========================================================
+
+Base URL:
+/api/v1/walk-exercise
+
+Endpoints:
+1. GET /api/v1/walk-exercise/home
+   Returns today's goal, today's totals, current active session, benefits, best walking times, and audio metadata.
+
+2. POST /api/v1/walk-exercise/sessions
+   Starts a walk session.
+
+3. PATCH /api/v1/walk-exercise/sessions/{sessionId}/metrics
+   Syncs live or final metrics from mobile.
+
+4. PATCH /api/v1/walk-exercise/sessions/{sessionId}/complete
+   Completes the session.
+
+
+=========================================================
+FOLDER STRUCTURE
+=========================================================
+
+Create:
+
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Controller
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/DTOs
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Entity
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Enums
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Repo
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Service
+
+
+=========================================================
+FEATURE 1 - CREATE ENUMS
+=========================================================
+
+---------------------------------------------------------
+FILE 1
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Enums/WalkSessionStatus.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Enums;
+
+public enum WalkSessionStatus {
+    IN_PROGRESS,
+    COMPLETED,
+    CANCELLED
+}
+
+CODE EXPLANATION:
+- IN_PROGRESS means the user tapped Start Walk and the session is still active.
+- COMPLETED means the user ended the walk normally.
+- CANCELLED means the session was abandoned and should not count strongly in progress history.
+- Using an enum prevents random strings like "doneeee" entering your database.
+
+
+---------------------------------------------------------
+FILE 2
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Enums/WalkSourcePlatform.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Enums;
+
+public enum WalkSourcePlatform {
+    ANDROID,
+    IOS,
+    MANUAL
+}
+
+CODE EXPLANATION:
+- ANDROID means metrics came from the Android app, usually Health Connect or device sensors.
+- IOS means metrics came from the iOS app, usually HealthKit.
+- MANUAL means the app created the session without native health data.
+- This matters because Android and iOS can produce data slightly differently.
+
+
+After Feature 1, run:
+.\mvnw.cmd -DskipTests compile
+
+
+=========================================================
+FEATURE 2 - CREATE ENTITIES
+=========================================================
+
+---------------------------------------------------------
+FILE 3
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Entity/WalkSession.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Entity;
+
+import com.Mamacare.Backend.AuthenticationPackage.user.User;
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSessionStatus;
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSourcePlatform;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(
+        name = "walk_sessions",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_walk_session_user_source", columnNames = {"user_id", "source_session_id"})
+        },
+        indexes = {
+                @Index(name = "idx_walk_sessions_user_date", columnList = "user_id, session_date"),
+                @Index(name = "idx_walk_sessions_user_status", columnList = "user_id, status")
+        }
+)
+public class WalkSession {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(name = "session_date", nullable = false)
+    private LocalDate sessionDate;
+
+    @Column(name = "started_at", nullable = false)
+    private OffsetDateTime startedAt;
+
+    @Column(name = "ended_at")
+    private OffsetDateTime endedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    @Builder.Default
+    private WalkSessionStatus status = WalkSessionStatus.IN_PROGRESS;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_platform", nullable = false, length = 20)
+    @Builder.Default
+    private WalkSourcePlatform sourcePlatform = WalkSourcePlatform.MANUAL;
+
+    @Column(name = "source_session_id", length = 120)
+    private String sourceSessionId;
+
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private String timezone = "Africa/Lagos";
+
+    @Column(name = "goal_minutes", nullable = false)
+    @Builder.Default
+    private int goalMinutes = 15;
+
+    @Column(name = "duration_seconds", nullable = false)
+    @Builder.Default
+    private int durationSeconds = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private int steps = 0;
+
+    @Column(name = "distance_meters", nullable = false)
+    @Builder.Default
+    private int distanceMeters = 0;
+
+    @Column(name = "calories_kcal", nullable = false)
+    @Builder.Default
+    private int caloriesKcal = 0;
+}
+
+CODE EXPLANATION:
+- WalkSession is one walk from start to finish.
+- user links the session to the logged-in mother.
+- sessionDate is the user's local date, used for today's goal.
+- startedAt and endedAt are real timestamps with offset.
+- status tells whether the session is still active, completed, or cancelled.
+- sourcePlatform tells whether data came from Android, iOS, or manual tracking.
+- sourceSessionId is the mobile platform's session id. It helps prevent duplicate syncs.
+- timezone makes "today" correct for the user, not just the server.
+- goalMinutes stores the goal used when this session started.
+- durationSeconds is stored in seconds because that is accurate and easy to format later.
+- steps, distanceMeters, and caloriesKcal are cumulative session metrics.
+- The unique constraint protects against saving the same mobile session twice.
+- The indexes make today's home screen and active-session lookup faster.
+
+
+---------------------------------------------------------
+FILE 4
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Entity/WalkGoalSetting.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Entity;
+
+import com.Mamacare.Backend.AuthenticationPackage.user.User;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(
+        name = "walk_goal_settings",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_walk_goal_user", columnNames = "user_id")
+        }
+)
+public class WalkGoalSetting {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @OneToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(name = "daily_goal_minutes", nullable = false)
+    @Builder.Default
+    private int dailyGoalMinutes = 15;
+
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private String timezone = "Africa/Lagos";
+}
+
+CODE EXPLANATION:
+- WalkGoalSetting stores the user's daily target.
+- One user should have one active walk goal setting.
+- dailyGoalMinutes defaults to 15 because the screen shows 10 / 15 min.
+- timezone lets the backend calculate each user's "today" correctly.
+- The unique constraint prevents duplicate goal-setting rows for the same user.
+
+
+After Feature 2, run:
+.\mvnw.cmd -DskipTests compile
+
+
+=========================================================
+FEATURE 3 - CREATE REPOSITORIES
+=========================================================
+
+---------------------------------------------------------
+FILE 5
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Repo/WalkSessionRepo.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Repo;
+
+import com.Mamacare.Backend.WalkExercisePackage.Entity.WalkSession;
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSessionStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+public interface WalkSessionRepo extends JpaRepository<WalkSession, Long> {
+
+    List<WalkSession> findByUserIdAndSessionDateOrderByStartedAtAsc(Integer userId, LocalDate sessionDate);
+
+    Optional<WalkSession> findByIdAndUserId(Long id, Integer userId);
+
+    Optional<WalkSession> findByUserIdAndSourceSessionId(Integer userId, String sourceSessionId);
+
+    Optional<WalkSession> findFirstByUserIdAndStatusOrderByStartedAtDesc(
+            Integer userId,
+            WalkSessionStatus status
+    );
+}
+
+CODE EXPLANATION:
+- JpaRepository gives save, findById, delete, and other common methods.
+- findByUserIdAndSessionDateOrderByStartedAtAsc loads today's sessions for the home screen.
+- findByIdAndUserId protects users from touching another user's session.
+- findByUserIdAndSourceSessionId makes mobile sync idempotent.
+- findFirstByUserIdAndStatusOrderByStartedAtDesc finds the current active session.
+
+
+---------------------------------------------------------
+FILE 6
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Repo/WalkGoalSettingRepo.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Repo;
+
+import com.Mamacare.Backend.WalkExercisePackage.Entity.WalkGoalSetting;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface WalkGoalSettingRepo extends JpaRepository<WalkGoalSetting, Long> {
+
+    Optional<WalkGoalSetting> findByUserId(Integer userId);
+}
+
+CODE EXPLANATION:
+- This repository loads the user's daily walk goal.
+- Optional means a user may not have a custom setting yet.
+- If no row exists, the service will use a safe default goal of 15 minutes.
+
+
+After Feature 3, run:
+.\mvnw.cmd -DskipTests compile
+
+
+=========================================================
+FEATURE 4 - CREATE DTOs
+=========================================================
+
+---------------------------------------------------------
+FILE 7
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/DTOs/StartWalkSessionRequest.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.DTOs;
+
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSourcePlatform;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class StartWalkSessionRequest {
+
+    @Min(value = 1, message = "Goal minutes must be at least 1.")
+    @Max(value = 180, message = "Goal minutes must not exceed 180.")
+    @JsonProperty("goal_minutes")
+    private Integer goalMinutes;
+
+    @Size(max = 50, message = "Timezone must not exceed 50 characters.")
+    private String timezone;
+
+    @JsonProperty("source_platform")
+    private WalkSourcePlatform sourcePlatform;
+
+    @Size(max = 120, message = "Source session id must not exceed 120 characters.")
+    @JsonProperty("source_session_id")
+    private String sourceSessionId;
+}
+
+CODE EXPLANATION:
+- This DTO is the JSON body for starting a walk.
+- goalMinutes is optional. If missing, the backend uses the user's default goal.
+- @Min and @Max stop nonsense goals like 0 minutes or 5000 minutes.
+- timezone is optional, but Android/iOS should send the user's real timezone.
+- sourcePlatform tells the backend if the session came from Android, iOS, or manual.
+- sourceSessionId lets the app safely retry a request without creating duplicates.
+
+
+---------------------------------------------------------
+FILE 8
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/DTOs/SyncWalkSessionMetricsRequest.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.DTOs;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class SyncWalkSessionMetricsRequest {
+
+    @Min(value = 0, message = "Duration seconds cannot be negative.")
+    @Max(value = 86400, message = "Duration seconds must not exceed one day.")
+    @JsonProperty("duration_seconds")
+
+    private Integer durationSeconds;
+
+    @Min(value = 0, message = "Steps cannot be negative.")
+    @Max(value = 1000000, message = "Steps value is too large.")
+
+    private Integer steps;
+
+    @Min(value = 0, message = "Distance cannot be negative.")
+    @JsonProperty("distance_meters")
+
+    private Integer distanceMeters;
+
+    @Min(value = 0, message = "Calories cannot be negative.")
+    @Max(value = 5000, message = "Calories value is too large.")
+    @JsonProperty("calories_kcal")
+    
+    private Integer caloriesKcal;
+}
+
+CODE EXPLANATION:
+- This DTO syncs live or final walk metrics from the mobile app.
+- All fields are Integer so the mobile app can send only the values it currently has.
+- durationSeconds is used for "10 / 15 min" progress.
+- steps powers the Steps card.
+- distanceMeters powers the Distance card.
+- caloriesKcal powers the Calories card.
+- Validation blocks negative or obviously broken values before they reach the database.
+
+
+---------------------------------------------------------
+FILE 9
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/DTOs/WalkSessionResponse.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.DTOs;
+
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSessionStatus;
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSourcePlatform;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class WalkSessionResponse {
+
+    private Long id;
+
+    private WalkSessionStatus status;
+
+    @JsonProperty("session_date")
+    private LocalDate sessionDate;
+
+    @JsonProperty("started_at")
+    private OffsetDateTime startedAt;
+
+    @JsonProperty("ended_at")
+    private OffsetDateTime endedAt;
+
+    @JsonProperty("goal_minutes")
+    private int goalMinutes;
+
+    @JsonProperty("duration_seconds")
+    private int durationSeconds;
+
+    @JsonProperty("display_duration")
+    private String displayDuration;
+
+    @JsonProperty("progress_percent")
+    private int progressPercent;
+
+    private int steps;
+
+    @JsonProperty("distance_meters")
+    private int distanceMeters;
+
+    @JsonProperty("display_distance")
+    private String displayDistance;
+
+    @JsonProperty("calories_kcal")
+    private int caloriesKcal;
+
+    @JsonProperty("source_platform")
+    private WalkSourcePlatform sourcePlatform;
+}
+
+CODE EXPLANATION:
+- This is the response for one walk session.
+- displayDuration is human-friendly, for example "10 min".
+- progressPercent helps the mobile UI draw a progress bar.
+- displayDistance lets the UI show "1.25 km" without recalculating.
+- raw fields like durationSeconds and distanceMeters are still included for mobile logic.
+
+
+---------------------------------------------------------
+FILE 10
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/DTOs/WalkHomeResponse.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.DTOs;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class WalkHomeResponse {
+
+    @JsonProperty("current_session")
+    private WalkSessionResponse currentSession;
+
+    @JsonProperty("today_goal")
+    private TodayGoal todayGoal;
+
+    @JsonProperty("today_metrics")
+    private TodayMetrics todayMetrics;
+
+    private String motivation;
+
+    @JsonProperty("audio_guides")
+    private List<AudioGuide> audioGuides;
+
+    private List<InfoItem> benefits;
+
+    @JsonProperty("best_times")
+    private List<BestTime> bestTimes;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TodayGoal {
+        @JsonProperty("completed_minutes")
+        private int completedMinutes;
+
+        @JsonProperty("goal_minutes")
+        private int goalMinutes;
+
+        @JsonProperty("progress_percent")
+        private int progressPercent;
+
+        private String label;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TodayMetrics {
+        private int steps;
+
+        @JsonProperty("distance_meters")
+        private int distanceMeters;
+
+        @JsonProperty("display_distance")
+        private String displayDistance;
+
+        @JsonProperty("calories_kcal")
+        private int caloriesKcal;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AudioGuide {
+        private String language;
+
+        private String title;
+
+        @JsonProperty("audio_url")
+        private String audioUrl;
+
+        @JsonProperty("duration_seconds")
+        private int durationSeconds;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class InfoItem {
+        private String title;
+        private String body;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BestTime {
+        private String label;
+        private String window;
+    }
+}
+
+CODE EXPLANATION:
+- WalkHomeResponse powers the full Walk & Exercise home screen.
+- currentSession is null when the user has not started walking.
+- todayGoal gives "10 / 15 min" type progress.
+- todayMetrics gives total steps, distance, and calories for today.
+- motivation gives gentle copy like "Let's move gently. You are doing great!"
+- audioGuides gives metadata for the audio cards in supported MVP languages.
+- benefits returns the "Why walking is good" items.
+- bestTimes returns Morning and Evening walking windows.
+- Nested classes keep this response in one file instead of creating too many tiny DTO files.
+
+
+After Feature 4, run:
+.\mvnw.cmd -DskipTests compile
+
+
+=========================================================
+FEATURE 5 - CREATE SERVICE
+=========================================================
+
+---------------------------------------------------------
+FILE 11
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Service/WalkExerciseService.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Service;
+
+import com.Mamacare.Backend.AuthenticationPackage.user.User;
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.StartWalkSessionRequest;
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.SyncWalkSessionMetricsRequest;
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.WalkHomeResponse;
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.WalkSessionResponse;
+import com.Mamacare.Backend.WalkExercisePackage.Entity.WalkGoalSetting;
+import com.Mamacare.Backend.WalkExercisePackage.Entity.WalkSession;
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSessionStatus;
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSourcePlatform;
+import com.Mamacare.Backend.WalkExercisePackage.Repo.WalkGoalSettingRepo;
+import com.Mamacare.Backend.WalkExercisePackage.Repo.WalkSessionRepo;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Locale;
+
+@Service
+@RequiredArgsConstructor
+public class WalkExerciseService {
+
+    private static final String DEFAULT_TIMEZONE = "Africa/Lagos";
+    private static final int DEFAULT_GOAL_MINUTES = 15;
+
+    private final WalkSessionRepo walkSessionRepository;
+    private final WalkGoalSettingRepo walkGoalSettingRepository;
+
+    @Transactional(readOnly = true)
+    public WalkHomeResponse getHome(Authentication authentication) {
+        User currentUser = getCurrentUser(authentication);
+        WalkGoalSetting goalSetting = getGoalSettingOrDefault(currentUser);
+        String timezone = normalizeTimezone(goalSetting.getTimezone());
+        LocalDate today = LocalDate.now(ZoneId.of(timezone));
+
+        List<WalkSession> todaySessions = walkSessionRepository
+                .findByUserIdAndSessionDateOrderByStartedAtAsc(currentUser.getId(), today);
+        WalkSession currentSession = walkSessionRepository
+                .findFirstByUserIdAndStatusOrderByStartedAtDesc(currentUser.getId(), WalkSessionStatus.IN_PROGRESS)
+                .orElse(null);
+
+        int durationSeconds = todaySessions.stream().mapToInt(WalkSession::getDurationSeconds).sum();
+        int completedMinutes = durationSeconds / 60;
+        int goalMinutes = goalSetting.getDailyGoalMinutes();
+
+        return WalkHomeResponse.builder()
+                .currentSession(currentSession == null ? null : toResponse(currentSession))
+                .todayGoal(WalkHomeResponse.TodayGoal.builder()
+                        .completedMinutes(completedMinutes)
+                        .goalMinutes(goalMinutes)
+                        .progressPercent(progressPercent(completedMinutes, goalMinutes))
+                        .label(completedMinutes + " / " + goalMinutes + " min")
+                        .build())
+                .todayMetrics(WalkHomeResponse.TodayMetrics.builder()
+                        .steps(todaySessions.stream().mapToInt(WalkSession::getSteps).sum())
+                        .distanceMeters(todaySessions.stream().mapToInt(WalkSession::getDistanceMeters).sum())
+                        .displayDistance(displayDistance(todaySessions.stream().mapToInt(WalkSession::getDistanceMeters).sum()))
+                        .caloriesKcal(todaySessions.stream().mapToInt(WalkSession::getCaloriesKcal).sum())
+                        .build())
+                .motivation("Let's move gently. You are doing great!")
+                .audioGuides(defaultAudioGuides())
+                .benefits(defaultBenefits())
+                .bestTimes(defaultBestTimes())
+                .build();
+    }
+
+    @Transactional
+    public WalkSessionResponse startSession(StartWalkSessionRequest request, Authentication authentication) {
+        User currentUser = getCurrentUser(authentication);
+
+        if (request != null && request.getSourceSessionId() != null && !request.getSourceSessionId().isBlank()) {
+            return walkSessionRepository
+                    .findByUserIdAndSourceSessionId(currentUser.getId(), request.getSourceSessionId().trim())
+                    .map(this::toResponse)
+                    .orElseGet(() -> createSession(currentUser, request));
+        }
+
+        return createSession(currentUser, request);
+    }
+
+    @Transactional
+    public WalkSessionResponse syncMetrics(
+            Long sessionId,
+            SyncWalkSessionMetricsRequest request,
+            Authentication authentication
+    ) {
+        User currentUser = getCurrentUser(authentication);
+        WalkSession session = findSessionOwnedByUser(sessionId, currentUser.getId());
+        applyMetrics(session, request);
+        return toResponse(walkSessionRepository.save(session));
+    }
+
+    @Transactional
+    public WalkSessionResponse completeSession(
+            Long sessionId,
+            SyncWalkSessionMetricsRequest request,
+            Authentication authentication
+    ) {
+        User currentUser = getCurrentUser(authentication);
+        WalkSession session = findSessionOwnedByUser(sessionId, currentUser.getId());
+        applyMetrics(session, request);
+        session.setStatus(WalkSessionStatus.COMPLETED);
+        session.setEndedAt(OffsetDateTime.now(ZoneId.of(session.getTimezone())));
+        return toResponse(walkSessionRepository.save(session));
+    }
+
+    private WalkSessionResponse createSession(User currentUser, StartWalkSessionRequest request) {
+        WalkGoalSetting goalSetting = getGoalSettingOrDefault(currentUser);
+        String timezone = normalizeTimezone(request == null ? null : request.getTimezone());
+        int goalMinutes = request != null && request.getGoalMinutes() != null
+                ? request.getGoalMinutes()
+                : goalSetting.getDailyGoalMinutes();
+        WalkSourcePlatform sourcePlatform = request != null && request.getSourcePlatform() != null
+                ? request.getSourcePlatform()
+                : WalkSourcePlatform.MANUAL;
+        OffsetDateTime now = OffsetDateTime.now(ZoneId.of(timezone));
+
+        WalkSession session = WalkSession.builder()
+                .user(currentUser)
+                .sessionDate(now.toLocalDate())
+                .startedAt(now)
+                .status(WalkSessionStatus.IN_PROGRESS)
+                .sourcePlatform(sourcePlatform)
+                .sourceSessionId(normalizeText(request == null ? null : request.getSourceSessionId()))
+                .timezone(timezone)
+                .goalMinutes(goalMinutes)
+                .build();
+
+        return toResponse(walkSessionRepository.save(session));
+    }
+
+    private void applyMetrics(WalkSession session, SyncWalkSessionMetricsRequest request) {
+        if (request == null) {
+            return;
+        }
+
+        if (request.getDurationSeconds() != null) {
+            session.setDurationSeconds(Math.max(session.getDurationSeconds(), request.getDurationSeconds()));
+        }
+        if (request.getSteps() != null) {
+            session.setSteps(Math.max(session.getSteps(), request.getSteps()));
+        }
+        if (request.getDistanceMeters() != null) {
+            session.setDistanceMeters(Math.max(session.getDistanceMeters(), request.getDistanceMeters()));
+        }
+        if (request.getCaloriesKcal() != null) {
+            session.setCaloriesKcal(Math.max(session.getCaloriesKcal(), request.getCaloriesKcal()));
+        }
+    }
+
+    private WalkSession findSessionOwnedByUser(Long sessionId, Integer userId) {
+        return walkSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Walk session not found."));
+    }
+
+    private WalkGoalSetting getGoalSettingOrDefault(User user) {
+        return walkGoalSettingRepository.findByUserId(user.getId())
+                .orElseGet(() -> WalkGoalSetting.builder()
+                        .user(user)
+                        .dailyGoalMinutes(DEFAULT_GOAL_MINUTES)
+                        .timezone(DEFAULT_TIMEZONE)
+                        .build());
+    }
+
+    private WalkSessionResponse toResponse(WalkSession session) {
+        int completedMinutes = session.getDurationSeconds() / 60;
+
+        return WalkSessionResponse.builder()
+                .id(session.getId())
+                .status(session.getStatus())
+                .sessionDate(session.getSessionDate())
+                .startedAt(session.getStartedAt())
+                .endedAt(session.getEndedAt())
+                .goalMinutes(session.getGoalMinutes())
+                .durationSeconds(session.getDurationSeconds())
+                .displayDuration(completedMinutes + " min")
+                .progressPercent(progressPercent(completedMinutes, session.getGoalMinutes()))
+                .steps(session.getSteps())
+                .distanceMeters(session.getDistanceMeters())
+                .displayDistance(displayDistance(session.getDistanceMeters()))
+                .caloriesKcal(session.getCaloriesKcal())
+                .sourcePlatform(session.getSourcePlatform())
+                .build();
+    }
+
+    private User getCurrentUser(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof User currentUser)) {
+            throw new IllegalArgumentException("Authenticated user is required.");
+        }
+        return currentUser;
+    }
+
+    private String normalizeTimezone(String timezone) {
+        String normalizedTimezone = timezone == null || timezone.isBlank() ? DEFAULT_TIMEZONE : timezone.trim();
+        ZoneId.of(normalizedTimezone);
+        return normalizedTimezone;
+    }
+
+    private String normalizeText(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private int progressPercent(int completedMinutes, int goalMinutes) {
+        if (goalMinutes <= 0) {
+            return 0;
+        }
+        return Math.min(100, (completedMinutes * 100) / goalMinutes);
+    }
+
+    private String displayDistance(int distanceMeters) {
+        return String.format(Locale.ENGLISH, "%.2f km", distanceMeters / 1000.0);
+    }
+
+    private List<WalkHomeResponse.AudioGuide> defaultAudioGuides() {
+        return List.of(
+                WalkHomeResponse.AudioGuide.builder()
+                        .language("ENGLISH")
+                        .title("Listen in English")
+                        .audioUrl("/audio/walk-session-english.mp3")
+                        .durationSeconds(75)
+                        .build(),
+                WalkHomeResponse.AudioGuide.builder()
+                        .language("YORUBA")
+                        .title("Listen in Yoruba")
+                        .audioUrl("/audio/walk-session-yoruba.mp3")
+                        .durationSeconds(75)
+                        .build(),
+                WalkHomeResponse.AudioGuide.builder()
+                        .language("PIDGIN")
+                        .title("Listen in Pidgin")
+                        .audioUrl("/audio/walk-session-pidgin.mp3")
+                        .durationSeconds(75)
+                        .build()
+        );
+    }
+
+    private List<WalkHomeResponse.InfoItem> defaultBenefits() {
+        return List.of(
+                WalkHomeResponse.InfoItem.builder().title("Boost energy").body("Gentle movement can help reduce tiredness.").build(),
+                WalkHomeResponse.InfoItem.builder().title("Improves sleep").body("Walking can support better rest.").build(),
+                WalkHomeResponse.InfoItem.builder().title("Reduces swelling").body("Movement can help blood flow in the legs.").build(),
+                WalkHomeResponse.InfoItem.builder().title("Supports baby's growth").body("Healthy movement supports overall pregnancy wellness.").build()
+        );
+    }
+
+    private List<WalkHomeResponse.BestTime> defaultBestTimes() {
+        return List.of(
+                WalkHomeResponse.BestTime.builder().label("Morning").window("7AM - 10AM").build(),
+                WalkHomeResponse.BestTime.builder().label("Evening").window("4PM - 7PM").build()
+        );
+    }
+}
+
+CODE EXPLANATION:
+- getHome builds everything needed for the Walk & Exercise screen.
+- It loads today's sessions using the logged-in user's id and local date.
+- It also loads the latest IN_PROGRESS session so the app can resume a walk.
+- completedMinutes is calculated from stored seconds because seconds are more accurate.
+- todayMetrics adds all sessions for the day, so multiple walks still count.
+- startSession creates a new IN_PROGRESS walk.
+- If sourceSessionId already exists, startSession returns the existing session instead of duplicating it.
+- syncMetrics updates live metrics from Android or iOS.
+- completeSession applies final metrics, marks the session COMPLETED, and sets endedAt.
+- applyMetrics uses Math.max so old mobile sync packets do not reduce progress.
+- findSessionOwnedByUser protects against one user editing another user's session.
+- normalizeTimezone checks that the timezone is valid.
+- displayDistance formats meters into "1.25 km".
+- defaultAudioGuides returns audio metadata for English, Yoruba, and Pidgin.
+- defaultBenefits and defaultBestTimes return static content for the screen.
+
+
+After Feature 5, run:
+.\mvnw.cmd -DskipTests compile
+
+
+=========================================================
+FEATURE 6 - CREATE CONTROLLER
+=========================================================
+
+---------------------------------------------------------
+FILE 12
+---------------------------------------------------------
+
+Create:
+src/main/java/com/Mamacare/Backend/WalkExercisePackage/Controller/WalkExerciseController.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Controller;
+
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.StartWalkSessionRequest;
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.SyncWalkSessionMetricsRequest;
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.WalkHomeResponse;
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.WalkSessionResponse;
+import com.Mamacare.Backend.WalkExercisePackage.Service.WalkExerciseService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/walk-exercise")
+@RequiredArgsConstructor
+public class WalkExerciseController {
+
+    private final WalkExerciseService walkExerciseService;
+
+    @GetMapping("/home")
+    public ResponseEntity<WalkHomeResponse> getHome(Authentication authentication) {
+        return ResponseEntity.ok(walkExerciseService.getHome(authentication));
+    }
+
+    @PostMapping("/sessions")
+    public ResponseEntity<WalkSessionResponse> startSession(
+            @Valid @RequestBody(required = false) StartWalkSessionRequest request,
+            Authentication authentication
+    ) {
+        WalkSessionResponse response = walkExerciseService.startSession(request, authentication);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PatchMapping("/sessions/{sessionId}/metrics")
+    public ResponseEntity<WalkSessionResponse> syncMetrics(
+            @PathVariable Long sessionId,
+            @Valid @RequestBody SyncWalkSessionMetricsRequest request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(walkExerciseService.syncMetrics(sessionId, request, authentication));
+    }
+
+    @PatchMapping("/sessions/{sessionId}/complete")
+    public ResponseEntity<WalkSessionResponse> completeSession(
+            @PathVariable Long sessionId,
+            @Valid @RequestBody(required = false) SyncWalkSessionMetricsRequest request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(walkExerciseService.completeSession(sessionId, request, authentication));
+    }
+}
+
+CODE EXPLANATION:
+- @RestController exposes JSON endpoints.
+- /api/v1/walk-exercise is the feature base path.
+- GET /home returns all data needed to paint the screen.
+- POST /sessions starts a walk and returns 201 Created.
+- PATCH /metrics lets mobile sync live sensor values.
+- PATCH /complete ends the walk session.
+- @Valid runs DTO validation before the service is called.
+- Authentication gives the service the logged-in user.
+- The controller does not contain business rules. It delegates to WalkExerciseService.
+
+
+After Feature 6, run:
+.\mvnw.cmd -DskipTests compile
+
+
+=========================================================
+FEATURE 7 - POSTMAN TESTS
+=========================================================
+
+Before testing:
+- Login and copy your JWT access token.
+- Use Authorization: Bearer {{access_token}}.
+
+TEST 1 - HOME SCREEN
+
+GET:
+{{base_url}}/api/v1/walk-exercise/home
+
+Expected:
+- 200 OK
+- today_goal exists
+- today_metrics exists
+- benefits exists
+- best_times exists
+- audio_guides exists
+
+CODE EXPLANATION:
+- This proves the app can load the screen before a walk starts.
+- current_session may be null, and that is okay.
+
+
+TEST 2 - START WALK
+
+POST:
+{{base_url}}/api/v1/walk-exercise/sessions
+
+Body:
+{
+  "goal_minutes": 15,
+  "timezone": "Africa/Lagos",
+  "source_platform": "ANDROID",
+  "source_session_id": "android-session-001"
+}
+
+Expected:
+- 201 Created
+- status = IN_PROGRESS
+- goal_minutes = 15
+
+CODE EXPLANATION:
+- This starts a session and gives mobile a backend session id.
+- source_session_id makes retry safe if the mobile network drops.
+
+
+TEST 3 - SYNC METRICS
+
+PATCH:
+{{base_url}}/api/v1/walk-exercise/sessions/{{session_id}}/metrics
+
+Body:
+{
+  "duration_seconds": 600,
+  "steps": 1245,
+  "distance_meters": 1250,
+  "calories_kcal": 78
+}
+
+Expected:
+- 200 OK
+- display_duration = 10 min
+- display_distance = 1.25 km
+- steps = 1245
+- calories_kcal = 78
+
+CODE EXPLANATION:
+- This is what Android/iOS should call while the walk is running or after reading health data.
+
+
+TEST 4 - COMPLETE WALK
+
+PATCH:
+{{base_url}}/api/v1/walk-exercise/sessions/{{session_id}}/complete
+
+Body:
+{
+  "duration_seconds": 930,
+  "steps": 1700,
+  "distance_meters": 1600,
+  "calories_kcal": 100
+}
+
+Expected:
+- 200 OK
+- status = COMPLETED
+- ended_at is not null
+
+CODE EXPLANATION:
+- This closes the walk session and stores final metrics.
+
+
+=========================================================
+FEATURE 8 - MOCKMVC TEST SKELETON
+=========================================================
+
+Create:
+src/test/java/com/Mamacare/Backend/WalkExercisePackage/Controller/WalkExerciseControllerMockMvcTest.java
+
+Paste:
+
+package com.Mamacare.Backend.WalkExercisePackage.Controller;
+
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.WalkHomeResponse;
+import com.Mamacare.Backend.WalkExercisePackage.DTOs.WalkSessionResponse;
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSessionStatus;
+import com.Mamacare.Backend.WalkExercisePackage.Enums.WalkSourcePlatform;
+import com.Mamacare.Backend.WalkExercisePackage.Service.WalkExerciseService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(MockitoExtension.class)
+class WalkExerciseControllerMockMvcTest {
+
+    private MockMvc mockMvc;
+
+    @Mock
+    private WalkExerciseService walkExerciseService;
+
+    @Mock
+    private Authentication authentication;
+
+    @BeforeEach
+    void setUp() {
+        WalkExerciseController controller = new WalkExerciseController(walkExerciseService);
+        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+    }
+
+    @Test
+    void getHomeReturnsWalkHomeData() throws Exception {
+        WalkHomeResponse response = WalkHomeResponse.builder()
+                .todayGoal(WalkHomeResponse.TodayGoal.builder()
+                        .completedMinutes(10)
+                        .goalMinutes(15)
+                        .progressPercent(66)
+                        .label("10 / 15 min")
+                        .build())
+                .todayMetrics(WalkHomeResponse.TodayMetrics.builder()
+                        .steps(1245)
+                        .distanceMeters(1250)
+                        .displayDistance("1.25 km")
+                        .caloriesKcal(78)
+                        .build())
+                .motivation("Let's move gently. You are doing great!")
+                .benefits(List.of())
+                .bestTimes(List.of())
+                .build();
+
+        when(walkExerciseService.getHome(any(Authentication.class))).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/walk-exercise/home").principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.today_goal.label").value("10 / 15 min"))
+                .andExpect(jsonPath("$.today_metrics.steps").value(1245))
+                .andExpect(jsonPath("$.today_metrics.display_distance").value("1.25 km"));
+    }
+
+    @Test
+    void startSessionReturnsCreatedSession() throws Exception {
+        when(walkExerciseService.startSession(any(), any(Authentication.class))).thenReturn(sessionResponse());
+
+        mockMvc.perform(post("/api/v1/walk-exercise/sessions")
+                        .principal(authentication)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "goal_minutes": 15,
+                                  "timezone": "Africa/Lagos",
+                                  "source_platform": "ANDROID",
+                                  "source_session_id": "android-session-001"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.goal_minutes").value(15));
+    }
+
+    @Test
+    void syncMetricsReturnsUpdatedSession() throws Exception {
+        when(walkExerciseService.syncMetrics(eq(1L), any(), any(Authentication.class))).thenReturn(sessionResponse());
+
+        mockMvc.perform(patch("/api/v1/walk-exercise/sessions/{sessionId}/metrics", 1L)
+                        .principal(authentication)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "duration_seconds": 600,
+                                  "steps": 1245,
+                                  "distance_meters": 1250,
+                                  "calories_kcal": 78
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.steps").value(1245))
+                .andExpect(jsonPath("$.display_distance").value("1.25 km"));
+    }
+
+    private WalkSessionResponse sessionResponse() {
+        return WalkSessionResponse.builder()
+                .id(1L)
+                .status(WalkSessionStatus.IN_PROGRESS)
+                .sessionDate(LocalDate.of(2026, 6, 1))
+                .startedAt(OffsetDateTime.parse("2026-06-01T09:41:00+01:00"))
+                .goalMinutes(15)
+                .durationSeconds(600)
+                .displayDuration("10 min")
+                .progressPercent(66)
+                .steps(1245)
+                .distanceMeters(1250)
+                .displayDistance("1.25 km")
+                .caloriesKcal(78)
+                .sourcePlatform(WalkSourcePlatform.ANDROID)
+                .build();
+    }
+}
+
+CODE EXPLANATION:
+- This test checks endpoint URLs and JSON field names.
+- It does not connect to PostgreSQL.
+- It uses a fake service so controller behavior is tested quickly.
+- The home test protects the today's goal and metrics response shape.
+- The start test protects POST /sessions.
+- The metrics test protects PATCH /metrics.
+
+
+=========================================================
+FEATURE 9 - MOBILE INTEGRATION RESPONSIBILITY
+=========================================================
+
+Who writes what:
+- Backend engineer writes the Spring Boot endpoints in this guide.
+- Android developer writes the Health Connect permission, reading, and sync code.
+- iOS developer writes the HealthKit permission, reading, and sync code.
+- If you are the only developer, then you write all three parts: backend, Android, and iOS.
+
+Why:
+- Health Connect and HealthKit live on the phone.
+- The backend cannot directly read the user's phone steps.
+- The mobile app must ask permission, read local health data, then send safe summaries to the backend.
+
+Production rule:
+- The app must still work when health permissions are denied.
+- In that case, use manual timer-based walking with zero or estimated sensor metrics, then sync what is available.
+
+
+=========================================================
+FEATURE 10 - ANDROID HEALTH CONNECT INTEGRATION
+=========================================================
+
+Android files are not inside this backend repo unless your mobile app is also here.
+Put this code in the Android app module.
+
+---------------------------------------------------------
+ANDROID FILE 1 - MANIFEST PERMISSIONS
+---------------------------------------------------------
+
+Paste into AndroidManifest.xml:
+
+<uses-permission android:name="android.permission.health.READ_STEPS" />
+<uses-permission android:name="android.permission.health.READ_DISTANCE" />
+<uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+<uses-permission android:name="android.permission.health.READ_EXERCISE" />
+
+CODE EXPLANATION:
+- READ_STEPS lets Android read step count from Health Connect.
+- READ_DISTANCE lets Android read walking/running distance.
+- READ_ACTIVE_CALORIES_BURNED lets Android read active calories.
+- READ_EXERCISE lets Android read exercise session records when available.
+- These permissions must be declared before requesting them at runtime.
+- Users can deny them, so the app must handle missing permission gracefully.
+
+
+---------------------------------------------------------
+ANDROID FILE 2 - HEALTH CONNECT PERMISSION MANAGER
+---------------------------------------------------------
+
+Create in Android app:
+HealthConnectPermissionManager.kt
+
+Paste:
+
+class HealthConnectPermissionManager(
+    private val healthConnectClient: HealthConnectClient
+) {
+    val permissions = setOf(
+        HealthPermission.getReadPermission(StepsRecord::class),
+        HealthPermission.getReadPermission(DistanceRecord::class),
+        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(ExerciseSessionRecord::class)
+    )
+
+    suspend fun hasAllPermissions(): Boolean {
+        val granted = healthConnectClient.permissionController.getGrantedPermissions()
+        return granted.containsAll(permissions)
+    }
+}
+
+CODE EXPLANATION:
+- HealthConnectClient is Android's client for talking to Health Connect.
+- permissions is the exact set of health data this feature needs.
+- StepsRecord gives steps.
+- DistanceRecord gives walking/running distance.
+- ActiveCaloriesBurnedRecord gives active calories.
+- ExerciseSessionRecord can represent a workout session when available.
+- hasAllPermissions checks whether the user already granted all needed access.
+- If false, show the Health Connect permission request UI.
+
+
+---------------------------------------------------------
+ANDROID FILE 3 - AGGREGATE WALK METRICS
+---------------------------------------------------------
+
+Create in Android app:
+AndroidWalkHealthReader.kt
+
+Paste:
+
+class AndroidWalkHealthReader(
+    private val healthConnectClient: HealthConnectClient
+) {
+    suspend fun readWalkMetrics(startTime: Instant, endTime: Instant): WalkMetrics {
+        val response = healthConnectClient.aggregate(
+            AggregateRequest(
+                metrics = setOf(
+                    StepsRecord.COUNT_TOTAL,
+                    DistanceRecord.DISTANCE_TOTAL,
+                    ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL
+                ),
+                timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
+            )
+        )
+
+        return WalkMetrics(
+            durationSeconds = Duration.between(startTime, endTime).seconds.toInt(),
+            steps = (response[StepsRecord.COUNT_TOTAL] ?: 0L).toInt(),
+            distanceMeters = (response[DistanceRecord.DISTANCE_TOTAL]?.inMeters ?: 0.0).toInt(),
+            caloriesKcal = (response[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0).toInt()
+        )
+    }
+}
+
+data class WalkMetrics(
+    val durationSeconds: Int,
+    val steps: Int,
+    val distanceMeters: Int,
+    val caloriesKcal: Int
+)
+
+CODE EXPLANATION:
+- readWalkMetrics reads totals for one walk interval.
+- startTime is when the user tapped Start Walk.
+- endTime is now or when the user ended the walk.
+- aggregate asks Health Connect to total the metrics inside that time range.
+- StepsRecord.COUNT_TOTAL returns total steps.
+- DistanceRecord.DISTANCE_TOTAL returns distance.
+- ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL returns active calories.
+- Missing data becomes 0 so the app does not crash.
+- WalkMetrics matches the backend SyncWalkSessionMetricsRequest shape.
+
+
+---------------------------------------------------------
+ANDROID FILE 4 - SEND METRICS TO BACKEND
+---------------------------------------------------------
+
+Create in Android app:
+WalkExerciseApi.kt
+
+Paste:
+
+interface WalkExerciseApi {
+
+    @POST("/api/v1/walk-exercise/sessions")
+    suspend fun startSession(
+        @Body request: StartWalkSessionRequest
+    ): WalkSessionResponse
+
+    @PATCH("/api/v1/walk-exercise/sessions/{sessionId}/metrics")
+    suspend fun syncMetrics(
+        @Path("sessionId") sessionId: Long,
+        @Body request: SyncWalkSessionMetricsRequest
+    ): WalkSessionResponse
+
+    @PATCH("/api/v1/walk-exercise/sessions/{sessionId}/complete")
+    suspend fun completeSession(
+        @Path("sessionId") sessionId: Long,
+        @Body request: SyncWalkSessionMetricsRequest
+    ): WalkSessionResponse
+}
+
+CODE EXPLANATION:
+- This is a Retrofit-style API interface.
+- startSession calls the backend when the user taps Start Walk.
+- syncMetrics sends live progress while walking.
+- completeSession sends final metrics and ends the backend session.
+- The JWT Authorization header should be added by your normal auth interceptor.
+- The request DTO field names must match the backend JSON contract.
+
+
+=========================================================
+FEATURE 11 - IOS HEALTHKIT INTEGRATION
+=========================================================
+
+iOS files are not inside this backend repo unless your mobile app is also here.
+Put this code in the iOS app module.
+
+---------------------------------------------------------
+IOS FILE 1 - HEALTHKIT CAPABILITY AND PLIST
+---------------------------------------------------------
+
+Required setup:
+
+1. In Xcode, enable HealthKit capability.
+2. Add these Info.plist keys:
+
+<key>NSHealthShareUsageDescription</key>
+<string>MamaCare uses your walking data to show your exercise progress.</string>
+<key>NSHealthUpdateUsageDescription</key>
+<string>MamaCare may save walking sessions when you choose to track a walk.</string>
+
+CODE EXPLANATION:
+- HealthKit requires an app capability before API calls work.
+- NSHealthShareUsageDescription explains why the app reads health data.
+- NSHealthUpdateUsageDescription explains why the app may write health data.
+- Apple can reject unclear health permission messages.
+- Users can deny permission, so the app must support manual walk tracking too.
+
+
+---------------------------------------------------------
+IOS FILE 2 - HEALTHKIT PERMISSION MANAGER
+---------------------------------------------------------
+
+Create in iOS app:
+HealthKitPermissionManager.swift
+
+Paste:
+
+import HealthKit
+
+final class HealthKitPermissionManager {
+    private let healthStore = HKHealthStore()
+
+    private var readTypes: Set<HKObjectType> {
+        [
+            HKObjectType.quantityType(forIdentifier: .stepCount)!,
+            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!,
+            HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKObjectType.workoutType()
+        ]
+    }
+
+    func requestAuthorization() async throws {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            throw HealthKitError.notAvailable
+        }
+
+        try await healthStore.requestAuthorization(toShare: [], read: readTypes)
+    }
+}
+
+enum HealthKitError: Error {
+    case notAvailable
+}
+
+CODE EXPLANATION:
+- HKHealthStore is the main HealthKit access object.
+- stepCount reads steps.
+- distanceWalkingRunning reads walking/running distance.
+- activeEnergyBurned reads active calories.
+- workoutType reads workout/session records.
+- isHealthDataAvailable prevents calling HealthKit on unsupported devices.
+- requestAuthorization shows Apple's permission prompt.
+- toShare is empty because this example reads data only.
+
+
+---------------------------------------------------------
+IOS FILE 3 - READ WALK METRICS
+---------------------------------------------------------
+
+Create in iOS app:
+IOSWalkHealthReader.swift
+
+Paste:
+
+import HealthKit
+
+struct WalkMetrics {
+    let durationSeconds: Int
+    let steps: Int
+    let distanceMeters: Int
+    let caloriesKcal: Int
+}
+
+final class IOSWalkHealthReader {
+    private let healthStore = HKHealthStore()
+
+    func readWalkMetrics(startDate: Date, endDate: Date) async throws -> WalkMetrics {
+        async let steps = cumulativeSum(.stepCount, unit: .count(), startDate: startDate, endDate: endDate)
+        async let distance = cumulativeSum(.distanceWalkingRunning, unit: .meter(), startDate: startDate, endDate: endDate)
+        async let calories = cumulativeSum(.activeEnergyBurned, unit: .kilocalorie(), startDate: startDate, endDate: endDate)
+
+        return WalkMetrics(
+            durationSeconds: Int(endDate.timeIntervalSince(startDate)),
+            steps: Int(try await steps),
+            distanceMeters: Int(try await distance),
+            caloriesKcal: Int(try await calories)
+        )
+    }
+
+    private func cumulativeSum(
+        _ identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        startDate: Date,
+        endDate: Date
+    ) async throws -> Double {
+        guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else {
+            return 0
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKStatisticsQuery(
+                quantityType: type,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { _, statistics, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let value = statistics?.sumQuantity()?.doubleValue(for: unit) ?? 0
+                continuation.resume(returning: value)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+}
+
+CODE EXPLANATION:
+- readWalkMetrics reads totals for one walking interval.
+- async let reads steps, distance, and calories at the same time.
+- HKStatisticsQuery with .cumulativeSum totals samples in the time range.
+- stepCount uses count units.
+- distanceWalkingRunning uses meter units.
+- activeEnergyBurned uses kilocalorie units.
+- Missing data becomes 0.
+- The returned WalkMetrics matches the backend sync metrics request.
+
+
+=========================================================
+FEATURE 12 - OFFLINE SYNC AND RETRIES
+=========================================================
+
+Why this is mandatory:
+- Pregnant users may walk without stable network.
+- Mobile health data may arrive while offline.
+- The app must not lose walking sessions.
+
+---------------------------------------------------------
+MOBILE FILE - LOCAL SYNC QUEUE MODEL
+---------------------------------------------------------
+
+Use this model in Android Room, iOS CoreData, SQLite, or another local store:
+
+SyncQueueItem {
+  id: local uuid,
+  endpoint: string,
+  http_method: string,
+  body_json: string,
+  idempotency_key: string,
+  attempt_count: number,
+  next_retry_at: timestamp,
+  created_at: timestamp
+}
+
+CODE EXPLANATION:
+- id is the local queue row id.
+- endpoint stores where the request should go.
+- http_method stores POST or PATCH.
+- body_json stores the exact request body to retry.
+- idempotency_key should be sourceSessionId for start-session requests.
+- attempt_count prevents infinite fast retries.
+- next_retry_at controls backoff timing.
+- created_at helps debug stuck sync items.
+
+
+---------------------------------------------------------
+MOBILE FILE - RETRY RULES
+---------------------------------------------------------
+
+Use these retry rules:
+
+1. If network is offline, save the request to SyncQueueItem.
+2. Retry when network returns.
+3. Use exponential backoff: 1 min, 5 min, 15 min, 1 hour.
+4. Stop retrying after a safe limit, for example 24 hours, but keep the item visible for diagnostics.
+5. For POST /sessions, always send source_session_id.
+6. For PATCH metrics, send the newest cumulative metrics.
+7. If backend returns 401, stop and refresh login token.
+8. If backend returns 400, do not retry blindly. Fix the local payload.
+9. If backend returns 500 or network timeout, retry.
+
+CODE EXPLANATION:
+- Offline queue prevents losing walks.
+- Exponential backoff protects the backend from request storms.
+- source_session_id makes start-session retries safe.
+- Sending cumulative metrics means retry order is less dangerous.
+- 401 means auth problem, not network problem.
+- 400 means bad request, so retrying the same payload will keep failing.
+- 500 and timeouts are usually retryable.
+
+
+=========================================================
+FEATURE 13 - MOBILE TO BACKEND FLOW
+=========================================================
+
+Start Walk flow:
+
+1. User taps Start Walk.
+2. Mobile generates sourceSessionId.
+3. Mobile calls POST /api/v1/walk-exercise/sessions.
+4. Backend returns backend session id.
+5. Mobile stores backend session id locally.
+6. Mobile starts timer and reads Health Connect / HealthKit data.
+7. Mobile calls PATCH /metrics every 30 to 60 seconds or when app resumes.
+8. User taps complete.
+9. Mobile reads final metrics.
+10. Mobile calls PATCH /complete.
+11. If offline, mobile queues failed requests and retries later.
+
+CODE EXPLANATION:
+- sourceSessionId is generated before the network call so retry is safe.
+- The backend session id is needed for PATCH calls.
+- 30 to 60 second sync is enough; do not hit the backend every second.
+- Final metrics should be cumulative from the session start to end.
+- Offline queue makes the feature safe on weak network.
+
+
+=========================================================
+FEATURE 14 - PRIVACY AND PRODUCT RULES
+=========================================================
+
+Rules:
+- Ask only for health permissions you actually need.
+- Explain why walking data is used.
+- Let users continue without health permission.
+- Never show scary medical claims.
+- Show gentle pregnancy-safe copy.
+- Include a disclaimer that users should follow clinician advice.
+- Do not use walk data for ads.
+
+CODE EXPLANATION:
+- Health data is sensitive.
+- Android and iOS both require clear permission reasons.
+- Users must control access.
+- Pregnancy features must be careful: walking guidance is wellness support, not medical diagnosis.
+
+
+=========================================================
+BUILD ORDER SUMMARY
+=========================================================
+
+1. Create enums.
+2. Create entities.
+3. Create repositories.
+4. Create DTOs.
+5. Create service.
+6. Create controller.
+7. Compile.
+8. Test with Postman.
+9. Add MockMvc tests.
+10. Build Android Health Connect permission and reader.
+11. Build iOS HealthKit permission and reader.
+12. Add offline sync queue and retry worker in mobile app.
+13. Test on real Android and iOS devices.
+
+
+=========================================================
+COMMON MISTAKES TO AVOID
+=========================================================
+
+Mistake:
+- Making the backend read phone steps directly.
+
+Fix:
+- Android/iOS read health data. Backend receives validated summaries.
+
+Mistake:
+- Storing distance as "1.25 km" text.
+
+Fix:
+- Store distanceMeters as an integer. Format "1.25 km" for display.
+
+Mistake:
+- Letting mobile retries create duplicate sessions.
+
+Fix:
+- Use sourceSessionId and unique constraint.
+
+Mistake:
+- Using server date for today's goal.
+
+Fix:
+- Use the user's timezone.
+
+Mistake:
+- Trusting metrics blindly.
+
+Fix:
+- Validate non-negative values and cap absurd values in request DTOs.
+
+
+END OF GUIDE
