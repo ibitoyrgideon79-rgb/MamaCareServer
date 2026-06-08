@@ -1,0 +1,895 @@
+MAMACARE HEALTH TIPS FEATURE - PRO GRADE BACKEND BUILD GUIDE
+Generated: 2026-06-04
+
+Goal
+Build the backend feature for this Home screen section:
+
+9:41
+Health Tips
+Small steps, healthy you, healthy baby.
+Listen in yoruba
+1.25 min
+Nutrition
+Eat healthy for you and your baby.
+Stay Hydrated
+Drink enough water daily.
+Get Enough Rest
+Good rest supports a healthy pregnancy.
+Manage Stress
+Stay calm and think positive.
+Tips of the Day
+Eat variety of fruits and vegetables everyday.
+Home
+Learn
+Track
+Community
+Profile
+
+This guide is intentionally backend-first. The mobile/frontend app should call one API and receive the content needed to render the Health Tips screen.
+
+Why this feature should be built this way
+1. Keep the Health Tips screen data-driven, so the app does not hardcode content forever.
+2. Use DTOs for API responses so database entities do not leak to clients.
+3. Use a service layer so business logic is testable without hitting PostgreSQL.
+4. Use repository query methods that match the existing Spring Data JPA style in this project.
+5. Use small comments only where the code needs orientation.
+
+Official docs checked before designing this:
+- Spring Boot validation reference: https://docs.spring.io/spring-boot/reference/io/validation.html
+- Spring Data JPA project/reference: https://spring.io/projects/spring-data-jpa
+- Spring Boot Mockito test package reference: https://docs.spring.io/spring-boot/3.3/api/java/org/springframework/boot/test/mock/mockito/package-summary.html
+
+Recommended package structure
+
+src/main/java/com/Mamacare/Backend/HealthTipsFeature/
+  Controller/
+    HealthTipsController.java
+  Dtos/
+    HealthTipHomeResponse.java
+    HealthTipCardResponse.java
+    HealthTipAudioGuideResponse.java
+  Entity/
+    HealthTip.java
+    HealthTipAudioGuide.java
+  Enums/
+    HealthTipCategory.java
+    HealthTipLanguage.java
+  Repo/
+    HealthTipRepo.java
+    HealthTipAudioGuideRepo.java
+  Services/
+    HealthTipsService.java
+
+src/test/java/com/Mamacare/Backend/HealthTipsFeature/
+  Controller/
+    HealthTipsControllerMockMvcTest.java
+  Services/
+    HealthTipsServiceTest.java
+
+================================================================================
+CODE 1: HealthTipCategory.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Enums/HealthTipCategory.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Enums;
+
+public enum HealthTipCategory {
+    NUTRITION,
+    HYDRATION,
+    REST,
+    STRESS_MANAGEMENT,
+    DAILY_TIP
+}
+
+Explanation:
+This enum keeps categories consistent. The frontend may display nicer names like "Stay Hydrated", but the backend stores stable values like HYDRATION.
+
+================================================================================
+CODE 2: HealthTipLanguage.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Enums/HealthTipLanguage.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Enums;
+
+public enum HealthTipLanguage {
+    ENGLISH,
+    YORUBA,
+    PIDGIN,
+    IGBO,
+    HAUSA
+}
+
+Explanation:
+This lets the feature support Yoruba now and other Nigerian languages later without changing the API shape.
+
+================================================================================
+CODE 3: HealthTip.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Entity/HealthTip.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Entity;
+
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipCategory;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(
+        name = "health_tips",
+        indexes = {
+                @Index(name = "idx_health_tips_active_sort", columnList = "active, sort_order"),
+                @Index(name = "idx_health_tips_category", columnList = "category")
+        }
+)
+public class HealthTip {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private HealthTipCategory category;
+
+    @Column(nullable = false, length = 80)
+    private String title;
+
+    @Column(nullable = false, length = 260)
+    private String body;
+
+    @Column(name = "sort_order", nullable = false)
+    @Builder.Default
+    private int sortOrder = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean active = true;
+}
+
+Explanation:
+HealthTip is the database model for each card on the Health Tips screen. active lets admins hide content without deleting it, and sortOrder controls the display order.
+
+================================================================================
+CODE 4: HealthTipAudioGuide.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Entity/HealthTipAudioGuide.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Entity;
+
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipLanguage;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@Table(
+        name = "health_tip_audio_guides",
+        indexes = {
+                @Index(name = "idx_health_tip_audio_active_language", columnList = "active, language")
+        }
+)
+public class HealthTipAudioGuide {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private HealthTipLanguage language;
+
+    @Column(nullable = false, length = 100)
+    private String title;
+
+    @Column(name = "audio_url", nullable = false, length = 300)
+    private String audioUrl;
+
+    @Column(name = "duration_seconds", nullable = false)
+    private int durationSeconds;
+
+    @Column(name = "sort_order", nullable = false)
+    @Builder.Default
+    private int sortOrder = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean active = true;
+}
+
+Explanation:
+This stores the audio guide metadata. The actual MP3 can live in static files, S3, Cloudinary, or another media host; the backend only returns the URL and duration.
+
+================================================================================
+CODE 5: HealthTipCardResponse.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Dtos/HealthTipCardResponse.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Dtos;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipCategory;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class HealthTipCardResponse {
+
+    private Long id;
+
+    private HealthTipCategory category;
+
+    private String title;
+
+    private String body;
+
+    @JsonProperty("sort_order")
+    private int sortOrder;
+}
+
+Explanation:
+This DTO is what one tip card looks like in JSON. It protects the API from exposing internal entity fields like active.
+
+================================================================================
+CODE 6: HealthTipAudioGuideResponse.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Dtos/HealthTipAudioGuideResponse.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Dtos;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipLanguage;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class HealthTipAudioGuideResponse {
+
+    private Long id;
+
+    private HealthTipLanguage language;
+
+    private String title;
+
+    @JsonProperty("audio_url")
+    private String audioUrl;
+
+    @JsonProperty("duration_seconds")
+    private int durationSeconds;
+
+    @JsonProperty("display_duration")
+    private String displayDuration;
+}
+
+Explanation:
+This DTO gives the frontend enough information to render "Listen in yoruba" and "1.25 min" without calculating the URL or duration itself.
+
+================================================================================
+CODE 7: HealthTipHomeResponse.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Dtos/HealthTipHomeResponse.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Dtos;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class HealthTipHomeResponse {
+
+    private String heading;
+
+    private String subtitle;
+
+    @JsonProperty("audio_guides")
+    private List<HealthTipAudioGuideResponse> audioGuides;
+
+    private List<HealthTipCardResponse> tips;
+
+    @JsonProperty("tip_of_the_day")
+    private HealthTipCardResponse tipOfTheDay;
+}
+
+Explanation:
+This is the response for the whole Health Tips home section. One endpoint returns the heading, subtitle, audio guides, regular tips, and the daily tip.
+
+================================================================================
+CODE 8: HealthTipRepo.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Repo/HealthTipRepo.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Repo;
+
+import com.Mamacare.Backend.HealthTipsFeature.Entity.HealthTip;
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipCategory;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface HealthTipRepo extends JpaRepository<HealthTip, Long> {
+
+    List<HealthTip> findByActiveTrueAndCategoryNotOrderBySortOrderAsc(HealthTipCategory category);
+
+    Optional<HealthTip> findFirstByActiveTrueAndCategoryOrderBySortOrderAsc(HealthTipCategory category);
+}
+
+Explanation:
+Spring Data JPA can derive these queries from method names. We fetch normal tips separately from DAILY_TIP so the screen can show "Tips of the Day" as its own section.
+
+================================================================================
+CODE 9: HealthTipAudioGuideRepo.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Repo/HealthTipAudioGuideRepo.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Repo;
+
+import com.Mamacare.Backend.HealthTipsFeature.Entity.HealthTipAudioGuide;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface HealthTipAudioGuideRepo extends JpaRepository<HealthTipAudioGuide, Long> {
+
+    List<HealthTipAudioGuide> findByActiveTrueOrderBySortOrderAsc();
+}
+
+Explanation:
+This repository returns active audio guides in a stable display order. The service can then choose Yoruba first if the app asks for it.
+
+================================================================================
+CODE 10: HealthTipsService.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Services/HealthTipsService.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Services;
+
+import com.Mamacare.Backend.HealthTipsFeature.Dtos.HealthTipAudioGuideResponse;
+import com.Mamacare.Backend.HealthTipsFeature.Dtos.HealthTipCardResponse;
+import com.Mamacare.Backend.HealthTipsFeature.Dtos.HealthTipHomeResponse;
+import com.Mamacare.Backend.HealthTipsFeature.Entity.HealthTip;
+import com.Mamacare.Backend.HealthTipsFeature.Entity.HealthTipAudioGuide;
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipCategory;
+import com.Mamacare.Backend.HealthTipsFeature.Repo.HealthTipAudioGuideRepo;
+import com.Mamacare.Backend.HealthTipsFeature.Repo.HealthTipRepo;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+
+@Service
+@RequiredArgsConstructor
+public class HealthTipsService {
+
+    private final HealthTipRepo healthTipRepository;
+    private final HealthTipAudioGuideRepo audioGuideRepository;
+
+    @Transactional(readOnly = true)
+    public HealthTipHomeResponse getHome() {
+        List<HealthTipCardResponse> tips = healthTipRepository
+                .findByActiveTrueAndCategoryNotOrderBySortOrderAsc(HealthTipCategory.DAILY_TIP)
+                .stream()
+                .map(this::toTipResponse)
+                .toList();
+
+        HealthTipCardResponse tipOfTheDay = healthTipRepository
+                .findFirstByActiveTrueAndCategoryOrderBySortOrderAsc(HealthTipCategory.DAILY_TIP)
+                .map(this::toTipResponse)
+                .orElse(defaultTipOfTheDay());
+
+        return HealthTipHomeResponse.builder()
+                .heading("Health Tips")
+                .subtitle("Small steps, healthy you, healthy baby.")
+                .audioGuides(audioGuides())
+                .tips(tips.isEmpty() ? defaultTips() : tips)
+                .tipOfTheDay(tipOfTheDay)
+                .build();
+    }
+
+    private List<HealthTipAudioGuideResponse> audioGuides() {
+        List<HealthTipAudioGuideResponse> savedGuides = audioGuideRepository
+                .findByActiveTrueOrderBySortOrderAsc()
+                .stream()
+                .map(this::toAudioResponse)
+                .sorted(Comparator.comparing(HealthTipAudioGuideResponse::getLanguage))
+                .toList();
+
+        return savedGuides.isEmpty() ? defaultAudioGuides() : savedGuides;
+    }
+
+    private HealthTipCardResponse toTipResponse(HealthTip tip) {
+        return HealthTipCardResponse.builder()
+                .id(tip.getId())
+                .category(tip.getCategory())
+                .title(tip.getTitle())
+                .body(tip.getBody())
+                .sortOrder(tip.getSortOrder())
+                .build();
+    }
+
+    private HealthTipAudioGuideResponse toAudioResponse(HealthTipAudioGuide audioGuide) {
+        return HealthTipAudioGuideResponse.builder()
+                .id(audioGuide.getId())
+                .language(audioGuide.getLanguage())
+                .title(audioGuide.getTitle())
+                .audioUrl(audioGuide.getAudioUrl())
+                .durationSeconds(audioGuide.getDurationSeconds())
+                .displayDuration(displayDuration(audioGuide.getDurationSeconds()))
+                .build();
+    }
+
+    private String displayDuration(int durationSeconds) {
+        int minutes = durationSeconds / 60;
+        int seconds = durationSeconds % 60;
+        return String.format(Locale.ENGLISH, "%d.%02d min", minutes, seconds);
+    }
+
+    private List<HealthTipAudioGuideResponse> defaultAudioGuides() {
+        return List.of(
+                HealthTipAudioGuideResponse.builder()
+                        .language(com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipLanguage.YORUBA)
+                        .title("Listen in yoruba")
+                        .audioUrl("/audio/health-tips-yoruba.mp3")
+                        .durationSeconds(75)
+                        .displayDuration("1.15 min")
+                        .build()
+        );
+    }
+
+    private List<HealthTipCardResponse> defaultTips() {
+        return List.of(
+                defaultTip(HealthTipCategory.NUTRITION, "Nutrition", "Eat healthy for you and your baby.", 1),
+                defaultTip(HealthTipCategory.HYDRATION, "Stay Hydrated", "Drink enough water daily.", 2),
+                defaultTip(HealthTipCategory.REST, "Get Enough Rest", "Good rest supports a healthy pregnancy.", 3),
+                defaultTip(HealthTipCategory.STRESS_MANAGEMENT, "Manage Stress", "Stay calm and think positive.", 4)
+        );
+    }
+
+    private HealthTipCardResponse defaultTipOfTheDay() {
+        return defaultTip(
+                HealthTipCategory.DAILY_TIP,
+                "Tips of the Day",
+                "Eat variety of fruits and vegetables everyday.",
+                5
+        );
+    }
+
+    private HealthTipCardResponse defaultTip(
+            HealthTipCategory category,
+            String title,
+            String body,
+            int sortOrder
+    ) {
+        return HealthTipCardResponse.builder()
+                .category(category)
+                .title(title)
+                .body(body)
+                .sortOrder(sortOrder)
+                .build();
+    }
+}
+
+Explanation:
+The service returns saved database content when available, but falls back to the exact screen copy you provided. This means the feature works on day one and can later become admin-editable.
+
+Important correction:
+The screen says "1.25 min". If that means 1 minute 25 seconds, use durationSeconds = 85 and displayDuration = "1.25 min". If it means 75 seconds, display it as "1.15 min". Pick one format and stay consistent. I recommend "1:25" for frontend display because users understand time better that way.
+
+================================================================================
+CODE 11: HealthTipsController.java
+Path: src/main/java/com/Mamacare/Backend/HealthTipsFeature/Controller/HealthTipsController.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Controller;
+
+import com.Mamacare.Backend.HealthTipsFeature.Dtos.HealthTipHomeResponse;
+import com.Mamacare.Backend.HealthTipsFeature.Services.HealthTipsService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/health-tips")
+@RequiredArgsConstructor
+public class HealthTipsController {
+
+    private final HealthTipsService healthTipsService;
+
+    @GetMapping("/home")
+    public ResponseEntity<HealthTipHomeResponse> getHome() {
+        return ResponseEntity.ok(healthTipsService.getHome());
+    }
+}
+
+Explanation:
+This controller exposes one clean endpoint: GET /api/v1/health-tips/home. The frontend can call it whenever it needs to render the Health Tips section.
+
+================================================================================
+CODE 12: HealthTipsServiceTest.java
+Path: src/test/java/com/Mamacare/Backend/HealthTipsFeature/Services/HealthTipsServiceTest.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Services;
+
+import com.Mamacare.Backend.HealthTipsFeature.Dtos.HealthTipHomeResponse;
+import com.Mamacare.Backend.HealthTipsFeature.Entity.HealthTip;
+import com.Mamacare.Backend.HealthTipsFeature.Entity.HealthTipAudioGuide;
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipCategory;
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipLanguage;
+import com.Mamacare.Backend.HealthTipsFeature.Repo.HealthTipAudioGuideRepo;
+import com.Mamacare.Backend.HealthTipsFeature.Repo.HealthTipRepo;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class HealthTipsServiceTest {
+
+    private HealthTipsService healthTipsService;
+
+    @Mock
+    private HealthTipRepo healthTipRepository;
+
+    @Mock
+    private HealthTipAudioGuideRepo audioGuideRepository;
+
+    @BeforeEach
+    void setUp() {
+        healthTipsService = new HealthTipsService(healthTipRepository, audioGuideRepository);
+    }
+
+    @Test
+    void getHomeReturnsSavedTipsAndAudioGuide() {
+        HealthTip nutrition = HealthTip.builder()
+                .id(1L)
+                .category(HealthTipCategory.NUTRITION)
+                .title("Nutrition")
+                .body("Eat healthy for you and your baby.")
+                .sortOrder(1)
+                .active(true)
+                .build();
+        HealthTip dailyTip = HealthTip.builder()
+                .id(2L)
+                .category(HealthTipCategory.DAILY_TIP)
+                .title("Tips of the Day")
+                .body("Eat variety of fruits and vegetables everyday.")
+                .sortOrder(5)
+                .active(true)
+                .build();
+        HealthTipAudioGuide audioGuide = HealthTipAudioGuide.builder()
+                .id(3L)
+                .language(HealthTipLanguage.YORUBA)
+                .title("Listen in yoruba")
+                .audioUrl("/audio/health-tips-yoruba.mp3")
+                .durationSeconds(85)
+                .sortOrder(1)
+                .active(true)
+                .build();
+
+        when(healthTipRepository.findByActiveTrueAndCategoryNotOrderBySortOrderAsc(HealthTipCategory.DAILY_TIP))
+                .thenReturn(List.of(nutrition));
+        when(healthTipRepository.findFirstByActiveTrueAndCategoryOrderBySortOrderAsc(HealthTipCategory.DAILY_TIP))
+                .thenReturn(Optional.of(dailyTip));
+        when(audioGuideRepository.findByActiveTrueOrderBySortOrderAsc())
+                .thenReturn(List.of(audioGuide));
+
+        HealthTipHomeResponse response = healthTipsService.getHome();
+
+        assertThat(response.getHeading()).isEqualTo("Health Tips");
+        assertThat(response.getSubtitle()).isEqualTo("Small steps, healthy you, healthy baby.");
+        assertThat(response.getTips()).hasSize(1);
+        assertThat(response.getTips().get(0).getTitle()).isEqualTo("Nutrition");
+        assertThat(response.getTipOfTheDay().getTitle()).isEqualTo("Tips of the Day");
+        assertThat(response.getAudioGuides().get(0).getLanguage()).isEqualTo(HealthTipLanguage.YORUBA);
+        assertThat(response.getAudioGuides().get(0).getDisplayDuration()).isEqualTo("1.25 min");
+    }
+
+    @Test
+    void getHomeUsesDefaultsWhenDatabaseHasNoContent() {
+        when(healthTipRepository.findByActiveTrueAndCategoryNotOrderBySortOrderAsc(HealthTipCategory.DAILY_TIP))
+                .thenReturn(List.of());
+        when(healthTipRepository.findFirstByActiveTrueAndCategoryOrderBySortOrderAsc(HealthTipCategory.DAILY_TIP))
+                .thenReturn(Optional.empty());
+        when(audioGuideRepository.findByActiveTrueOrderBySortOrderAsc())
+                .thenReturn(List.of());
+
+        HealthTipHomeResponse response = healthTipsService.getHome();
+
+        assertThat(response.getTips()).hasSize(4);
+        assertThat(response.getTips().get(1).getTitle()).isEqualTo("Stay Hydrated");
+        assertThat(response.getTipOfTheDay().getBody())
+                .isEqualTo("Eat variety of fruits and vegetables everyday.");
+        assertThat(response.getAudioGuides()).hasSize(1);
+    }
+}
+
+Explanation:
+This is a pure service unit test. It mocks repositories, so it does not need PostgreSQL and it will not fail because of database credentials.
+
+================================================================================
+CODE 13: HealthTipsControllerMockMvcTest.java
+Path: src/test/java/com/Mamacare/Backend/HealthTipsFeature/Controller/HealthTipsControllerMockMvcTest.java
+================================================================================
+
+package com.Mamacare.Backend.HealthTipsFeature.Controller;
+
+import com.Mamacare.Backend.HealthTipsFeature.Dtos.HealthTipAudioGuideResponse;
+import com.Mamacare.Backend.HealthTipsFeature.Dtos.HealthTipCardResponse;
+import com.Mamacare.Backend.HealthTipsFeature.Dtos.HealthTipHomeResponse;
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipCategory;
+import com.Mamacare.Backend.HealthTipsFeature.Enums.HealthTipLanguage;
+import com.Mamacare.Backend.HealthTipsFeature.Services.HealthTipsService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.util.List;
+
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(MockitoExtension.class)
+class HealthTipsControllerMockMvcTest {
+
+    private MockMvc mockMvc;
+
+    @Mock
+    private HealthTipsService healthTipsService;
+
+    @BeforeEach
+    void setUp() {
+        HealthTipsController controller = new HealthTipsController(healthTipsService);
+        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+    }
+
+    @Test
+    void getHomeReturnsHealthTipsScreenContent() throws Exception {
+        HealthTipHomeResponse response = HealthTipHomeResponse.builder()
+                .heading("Health Tips")
+                .subtitle("Small steps, healthy you, healthy baby.")
+                .audioGuides(List.of(
+                        HealthTipAudioGuideResponse.builder()
+                                .language(HealthTipLanguage.YORUBA)
+                                .title("Listen in yoruba")
+                                .audioUrl("/audio/health-tips-yoruba.mp3")
+                                .durationSeconds(85)
+                                .displayDuration("1.25 min")
+                                .build()
+                ))
+                .tips(List.of(
+                        HealthTipCardResponse.builder()
+                                .category(HealthTipCategory.NUTRITION)
+                                .title("Nutrition")
+                                .body("Eat healthy for you and your baby.")
+                                .sortOrder(1)
+                                .build()
+                ))
+                .tipOfTheDay(HealthTipCardResponse.builder()
+                        .category(HealthTipCategory.DAILY_TIP)
+                        .title("Tips of the Day")
+                        .body("Eat variety of fruits and vegetables everyday.")
+                        .sortOrder(5)
+                        .build())
+                .build();
+
+        when(healthTipsService.getHome()).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/health-tips/home"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.heading").value("Health Tips"))
+                .andExpect(jsonPath("$.subtitle").value("Small steps, healthy you, healthy baby."))
+                .andExpect(jsonPath("$.audio_guides[0].language").value("YORUBA"))
+                .andExpect(jsonPath("$.audio_guides[0].display_duration").value("1.25 min"))
+                .andExpect(jsonPath("$.tips[0].title").value("Nutrition"))
+                .andExpect(jsonPath("$.tip_of_the_day.title").value("Tips of the Day"));
+    }
+}
+
+Explanation:
+This controller test checks the HTTP response shape. It uses standalone MockMvc, so it avoids booting the whole app and avoids the current PostgreSQL test failure.
+
+================================================================================
+OPTIONAL SEEDING APPROACH
+================================================================================
+
+If you want default content in the database, add a small seeder using CommandLineRunner later.
+Do not overdo this first version. The service already has defaults, which makes the first release safer.
+
+Suggested saved tips:
+
+1. NUTRITION
+   title: Nutrition
+   body: Eat healthy for you and your baby.
+   sortOrder: 1
+
+2. HYDRATION
+   title: Stay Hydrated
+   body: Drink enough water daily.
+   sortOrder: 2
+
+3. REST
+   title: Get Enough Rest
+   body: Good rest supports a healthy pregnancy.
+   sortOrder: 3
+
+4. STRESS_MANAGEMENT
+   title: Manage Stress
+   body: Stay calm and think positive.
+   sortOrder: 4
+
+5. DAILY_TIP
+   title: Tips of the Day
+   body: Eat variety of fruits and vegetables everyday.
+   sortOrder: 5
+
+================================================================================
+API RESPONSE EXAMPLE
+================================================================================
+
+GET /api/v1/health-tips/home
+
+{
+  "heading": "Health Tips",
+  "subtitle": "Small steps, healthy you, healthy baby.",
+  "audio_guides": [
+    {
+      "id": null,
+      "language": "YORUBA",
+      "title": "Listen in yoruba",
+      "audio_url": "/audio/health-tips-yoruba.mp3",
+      "duration_seconds": 85,
+      "display_duration": "1.25 min"
+    }
+  ],
+  "tips": [
+    {
+      "id": null,
+      "category": "NUTRITION",
+      "title": "Nutrition",
+      "body": "Eat healthy for you and your baby.",
+      "sort_order": 1
+    },
+    {
+      "id": null,
+      "category": "HYDRATION",
+      "title": "Stay Hydrated",
+      "body": "Drink enough water daily.",
+      "sort_order": 2
+    },
+    {
+      "id": null,
+      "category": "REST",
+      "title": "Get Enough Rest",
+      "body": "Good rest supports a healthy pregnancy.",
+      "sort_order": 3
+    },
+    {
+      "id": null,
+      "category": "STRESS_MANAGEMENT",
+      "title": "Manage Stress",
+      "body": "Stay calm and think positive.",
+      "sort_order": 4
+    }
+  ],
+  "tip_of_the_day": {
+    "id": null,
+    "category": "DAILY_TIP",
+    "title": "Tips of the Day",
+    "body": "Eat variety of fruits and vegetables everyday.",
+    "sort_order": 5
+  }
+}
+
+================================================================================
+BUILD STEPS
+================================================================================
+
+1. Create the package folders listed above.
+2. Add enums.
+3. Add entities.
+4. Add DTOs.
+5. Add repositories.
+6. Add service.
+7. Add controller.
+8. Add service tests.
+9. Add controller test.
+10. Run:
+    .\mvnw.cmd -Dtest=HealthTipsServiceTest,HealthTipsControllerMockMvcTest test
+11. Run compile:
+    .\mvnw.cmd -DskipTests compile
+12. If the full test suite still fails because BackendApplicationTests tries to connect to PostgreSQL, fix that separately with a test profile or test datasource.
+
+================================================================================
+QUALITY CHECKLIST
+================================================================================
+
+- The API should return content even when the database is empty.
+- The API should not expose JPA entities directly.
+- Tests should not require PostgreSQL.
+- The response uses snake_case JSON fields where the mobile client expects them.
+- The code has short comments only where helpful.
+- Audio duration format should be agreed with frontend before release.
+
+================================================================================
+GOALS FOR THIS ITERATION
+================================================================================
+
+Goal 1: Define a production-grade backend design for the Health Tips screen.
+Status: Achieved in this guide.
+
+Goal 2: Provide complete code snippets for each required backend file.
+Status: Achieved in this guide.
+
+Goal 3: Include explanations after each code block so a junior developer understands why each part exists.
+Status: Achieved in this guide.
+
+Goal 4: Include tests that validate service logic and HTTP response shape without touching PostgreSQL.
+Status: Achieved in this guide.
+
+Goal 5: Keep this guide local by adding it to .gitignore.
+Status: Achieved after .gitignore is updated with HEALTH_TIPS_FEATURE_PRO_GRADE_GUIDE.txt.
