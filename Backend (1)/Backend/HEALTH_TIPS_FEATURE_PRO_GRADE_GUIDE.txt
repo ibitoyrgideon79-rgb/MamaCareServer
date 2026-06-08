@@ -1,3 +1,409 @@
+
+MAMACARE BACKEND - HEALTH TIPS FEATURE PRO-GRADE CODE GUIDE
+===========================================================
+
+Purpose of this document
+------------------------
+This guide explains the Health Tips work from the code point of view, not only from the product/feature point of view. In this backend, the tips are currently implemented as medication safety tips that are returned together with the user's medication home screen data.
+
+Feature in one sentence
+-----------------------
+When an authenticated user calls the medication home endpoint, the backend returns two pieces of data in one response: the user's medications for today and a small list of educational health tips.
+
+Main endpoint
+-------------
+GET /api/v1/medications/today
+
+Controller method:
+- File: src/main/java/com/Mamacare/Backend/MedicationRemiderPackage/Controller/MedicationController.java
+- Method: getTodayMedications(Authentication authentication)
+
+Response DTO:
+- File: src/main/java/com/Mamacare/Backend/MedicationRemiderPackage/DTOs/MedicationHomeResponse.java
+- JSON fields:
+  - today_medications: list of today's medication cards
+  - tips: list of health/medication tip cards
+
+High-level request flow
+-----------------------
+1. The client sends GET /api/v1/medications/today with a valid JWT/access token.
+2. Spring Security resolves the logged-in user and passes the Authentication object into the controller method.
+3. MedicationController delegates the work to MedicationService.getTodayMedications(authentication).
+4. MedicationService extracts the current user from Authentication.
+5. MedicationService loads all active medications for that user from MedicationRepo.
+6. MedicationService filters those medications using MedicationScheduleCalculator.shouldShowToday(...), so only medications due today remain.
+7. MedicationService checks MedicationIntakeLogRepo to know which of today's medications were already marked TAKEN.
+8. MedicationService maps the Medication entities into MedicationResponse DTOs.
+9. MedicationService asks MedicationTipService.getTips() for the educational tips.
+10. MedicationService builds MedicationHomeResponse with both todayMedications and tips.
+11. The controller returns HTTP 200 OK with the combined JSON payload.
+
+Important code pieces
+---------------------
+
+1. MedicationController
+~~~~~~~~~~~~~~~~~~~~~~~
+The controller is the HTTP entry point. It does not contain business rules. Its job is to expose REST routes and call the service layer.
+
+Relevant code shape:
+
+    @GetMapping("/today")
+    public ResponseEntity<MedicationHomeResponse> getTodayMedications(Authentication authentication) {
+        return ResponseEntity.ok(medicationService.getTodayMedications(authentication));
+    }
+
+Why this matters:
+- The route is easy for the frontend to consume: /api/v1/medications/today.
+- The controller stays thin, which is good Spring Boot design.
+- The Authentication object is forwarded to the service, so user-specific data is handled below the controller layer.
+
+2. MedicationService.getTodayMedications(...)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is the main orchestration method for the home-screen data.
+
+Relevant code shape:
+
+    @Transactional(readOnly = true)
+    public MedicationHomeResponse getTodayMedications(Authentication authentication) {
+        User currentUser = getCurrentUser(authentication);
+        List<Medication> activeMedications = medicationRepository
+                .findByUserIdAndActiveTrueOrderByMedicationTimeAsc(currentUser.getId());
+        List<Medication> todayMedications = activeMedications.stream()
+                .filter(scheduleCalculator::shouldShowToday)
+                .toList();
+        Set<Long> takenMedicationIds = loadTakenMedicationIdsForToday(todayMedications);
+
+        List<MedicationResponse> medicationResponses = todayMedications.stream()
+                .map(medication -> toResponse(medication, takenMedicationIds))
+                .toList();
+
+        return MedicationHomeResponse.builder()
+                .todayMedications(medicationResponses)
+                .tips(medicationTipService.getTips())
+                .build();
+    }
+
+What each part does:
+- @Transactional(readOnly = true): tells Spring this method only reads data. That is cleaner and safer than opening a write transaction.
+- getCurrentUser(authentication): validates that the request is authenticated and extracts the logged-in User object.
+- medicationRepository.findByUserIdAndActiveTrueOrderByMedicationTimeAsc(...): loads only this user's active medications, ordered by time.
+- scheduleCalculator.shouldShowToday: applies the schedule/frequency rules, so the response does not show medications that are not due today.
+- loadTakenMedicationIdsForToday: checks intake logs and returns the IDs of medications already taken today.
+- toResponse(...): converts database entities into API-safe DTOs.
+- medicationTipService.getTips(): injects the health tip cards into the same response.
+
+Why this matters:
+- The tips are not an isolated endpoint in the current design. They are part of the medication home response.
+- The feature is connected to real user state because the same response includes today's medications and taken/not-taken status.
+- The service is responsible for combining dynamic user data with static educational content.
+
+3. MedicationTipService
+~~~~~~~~~~~~~~~~~~~~~~~
+This service owns the actual tip content.
+
+File:
+- src/main/java/com/Mamacare/Backend/MedicationRemiderPackage/Service/MedicationTipService.java
+
+Relevant code shape:
+
+    @Service
+    public class MedicationTipService {
+
+        public List<MedicationTipResponse> getTips() {
+            return List.of(
+                    MedicationTipResponse.builder()
+                            .title("Take with water")
+                            .body("Water helps many medicines move through the body safely.")
+                            .build(),
+                    MedicationTipResponse.builder()
+                            .title("Keep a steady time")
+                            .body("Taking medicine around the same time each day helps build a routine.")
+                            .build(),
+                    MedicationTipResponse.builder()
+                            .title("Ask before changing dose")
+                            .body("Talk to your doctor or pharmacist before changing how much you take.")
+                            .build()
+            );
+        }
+    }
+
+What this class does:
+- It is a Spring @Service, so Spring creates and injects it automatically.
+- It returns a List<MedicationTipResponse>.
+- It currently stores the tips in code as static content.
+- Each tip has a title and body.
+
+Why this design is useful:
+- Tip content is separated from MedicationService.
+- MedicationService does not need to know the exact tip texts.
+- If the project later moves tips into a database, API, or CMS, this service is the natural place to change the implementation without rewriting the controller.
+
+Current limitation:
+- The tips are hardcoded. That is simple and reliable for an MVP, but it means changing tips requires a code change and redeploy.
+
+Future upgrade path:
+- Add a HealthTip entity/table.
+- Add fields like id, title, body, category, pregnancyWeekStart, pregnancyWeekEnd, active, priority, createdAt, updatedAt.
+- Replace the hardcoded List.of(...) with a repository query.
+- Add admin endpoints to create, update, activate, and deactivate tips.
+
+4. MedicationTipResponse DTO
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This DTO defines the JSON shape for one tip card.
+
+File:
+- src/main/java/com/Mamacare/Backend/MedicationRemiderPackage/DTOs/MedicationTipResponse.java
+
+Relevant code shape:
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public class MedicationTipResponse {
+        private String title;
+        private String body;
+    }
+
+What it means:
+- title: short headline shown on the client.
+- body: explanation text shown under the title.
+
+Why Lombok annotations are used:
+- @Data generates getters, setters, equals, hashCode, and toString.
+- @Builder allows clean object construction like MedicationTipResponse.builder().title(...).body(...).build().
+- @NoArgsConstructor and @AllArgsConstructor help with object creation and serialization/deserialization needs.
+
+Example JSON for one tip:
+
+    {
+      "title": "Take with water",
+      "body": "Water helps many medicines move through the body safely."
+    }
+
+5. MedicationHomeResponse DTO
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This DTO wraps the entire response for GET /api/v1/medications/today.
+
+File:
+- src/main/java/com/Mamacare/Backend/MedicationRemiderPackage/DTOs/MedicationHomeResponse.java
+
+Relevant code shape:
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public class MedicationHomeResponse {
+
+        @JsonProperty("today_medications")
+        private List<MedicationResponse> todayMedications;
+
+        private List<MedicationTipResponse> tips;
+    }
+
+What it means:
+- todayMedications is named today_medications in JSON because of @JsonProperty.
+- tips is returned as tips in JSON.
+
+Why this matters:
+- Java code can use camelCase: todayMedications.
+- The API can return frontend-friendly snake_case: today_medications.
+- The response keeps home-screen data together, reducing the number of API calls the frontend needs.
+
+Example full response
+---------------------
+
+    {
+      "today_medications": [
+        {
+          "id": 1,
+          "medicine_name": "PregnaCare",
+          "dose": "1 tablet",
+          "frequency": "DAILY",
+          "medication_time": "17:00:00",
+          "display_time": "5.00 PM",
+          "taken_today": true,
+          "reminder_enabled": true,
+          "reminder_offset": "ON_TIME",
+          "active": true
+        }
+      ],
+      "tips": [
+        {
+          "title": "Take with water",
+          "body": "Water helps many medicines move through the body safely."
+        },
+        {
+          "title": "Keep a steady time",
+          "body": "Taking medicine around the same time each day helps build a routine."
+        },
+        {
+          "title": "Ask before changing dose",
+          "body": "Talk to your doctor or pharmacist before changing how much you take."
+        }
+      ]
+    }
+
+How the code connects to the database
+-------------------------------------
+The tips themselves do not currently come from the database. The medication list and taken status do.
+
+Database-backed parts:
+- MedicationRepo loads active medications for the logged-in user.
+- MedicationIntakeLogRepo checks which medications were taken today.
+- MedicationReminderRepo is used elsewhere for reminder scheduling and response mapping.
+
+Non-database-backed part:
+- MedicationTipService returns hardcoded tip cards.
+
+This is why the feature is mixed:
+- The medication home data is dynamic and user-specific.
+- The tips are static and shared by all users.
+
+Authentication and user ownership
+---------------------------------
+The feature is protected by Spring Security because the controller receives an Authentication object. MedicationService then calls getCurrentUser(authentication).
+
+Important behavior:
+- If Authentication is missing or the principal is not a User, the service throws an IllegalArgumentException.
+- Repository queries use currentUser.getId(), so one user cannot see another user's medications.
+- Tips are not user-specific yet, but they are delivered inside an authenticated response.
+
+Testing coverage
+----------------
+The current tests verify that the tips are included in the response.
+
+1. Service-level test
+~~~~~~~~~~~~~~~~~~~~~
+File:
+- src/test/java/com/Mamacare/Backend/MedicationRemiderPackage/Service/MedicationServiceTest.java
+
+What it checks:
+- MedicationService.getTodayMedications(...) returns today's medication list.
+- The response includes tips from MedicationTipService.
+- The first returned tip title can be asserted as "Take with water".
+
+Why this test is important:
+- It proves that MedicationService correctly combines medication data and tip data.
+- It confirms that MedicationTipService is part of the service orchestration.
+
+2. Controller-level test
+~~~~~~~~~~~~~~~~~~~~~~~~
+File:
+- src/test/java/com/Mamacare/Backend/MedicationRemiderPackage/Controller/MedicationControllerMockMvcTest.java
+
+What it checks:
+- GET /api/v1/medications/today returns HTTP 200.
+- The JSON contains today_medications as an array.
+- The JSON contains tips[0].title.
+
+Why this test is important:
+- It proves that the API response shape is correct for the frontend.
+- It catches accidental JSON field changes, especially today_medications and tips.
+
+Why the implementation is clean
+-------------------------------
+The feature follows common Spring Boot layering:
+
+Controller layer:
+- Exposes HTTP endpoints.
+- Does not contain business logic.
+
+Service layer:
+- Coordinates authentication, repositories, scheduling rules, mapping, and tips.
+
+DTO layer:
+- Defines exactly what JSON the API returns.
+
+Repository layer:
+- Handles database queries for medications and intake logs.
+
+Tip service:
+- Isolates educational content from the rest of the medication logic.
+
+Frontend integration notes
+--------------------------
+The frontend should call:
+
+    GET /api/v1/medications/today
+
+Then render:
+- response.today_medications as the medication cards/checklist.
+- response.tips as the health tip cards.
+
+Recommended UI behavior:
+- Show tips even when today_medications is empty.
+- Do not treat tips as medical diagnosis.
+- Display the body text exactly as informational guidance.
+- Add a disclaimer if the design requires it, for example: "Always follow advice from your doctor or pharmacist."
+
+Possible pro-grade improvements
+-------------------------------
+1. Database-managed tips
+~~~~~~~~~~~~~~~~~~~~~~~~
+Create a HealthTip entity and repository so tips can be managed without redeploying the backend.
+
+Possible fields:
+- id
+- title
+- body
+- category
+- active
+- priority
+- createdAt
+- updatedAt
+
+2. Category-based tips
+~~~~~~~~~~~~~~~~~~~~~~
+Add categories such as:
+- MEDICATION
+- NUTRITION
+- EXERCISE
+- APPOINTMENT
+- PREGNANCY_WEEK
+
+Then the API can return only the tips relevant to the screen or user context.
+
+3. Pregnancy-week personalization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Connect tips to PregnancyProfile so users can receive tips based on current pregnancy week.
+
+Example:
+- Week 8: nausea and hydration tips.
+- Week 20: movement and anatomy scan reminders.
+- Week 32: birth preparation and hospital bag guidance.
+
+4. Localization
+~~~~~~~~~~~~~~~
+Add language support for tip content.
+
+Possible fields:
+- languageCode
+- localizedTitle
+- localizedBody
+
+5. Admin management
+~~~~~~~~~~~~~~~~~~~
+Add secured admin endpoints:
+- POST /api/v1/admin/health-tips
+- PATCH /api/v1/admin/health-tips/{id}
+- PATCH /api/v1/admin/health-tips/{id}/inactive
+
+6. Medical review workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+Because the app is health-related, future tip content should ideally have review status.
+
+Possible fields:
+- reviewStatus
+- reviewedBy
+- reviewedAt
+- sourceReference
+
+Summary
+-------
+The Health Tips feature is implemented as a small but well-layered part of the medication home endpoint. The controller exposes GET /api/v1/medications/today, MedicationService builds the authenticated user-specific medication home response, MedicationTipService provides the educational tip cards, and MedicationHomeResponse defines the final JSON shape. The feature is currently static-content based, but the service separation makes it easy to upgrade later into database-driven, personalized, localized, or admin-managed health tips.
+=======
 MAMACARE HEALTH TIPS FEATURE - PRO GRADE BACKEND BUILD GUIDE
 Generated: 2026-06-04
 
