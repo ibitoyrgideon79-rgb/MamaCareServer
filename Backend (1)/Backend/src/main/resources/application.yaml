@@ -3,14 +3,15 @@ spring:
     name: Backend
 
   datasource:
-    url: jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require
-    username: postgres.fqxqsaiitvezjzbjemoh
-    password: ${SUPABASE_DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
+    # Replace 'your_database_name' with your actual MySQL database name (e.g., mamacare-database-real)
+    url: jdbc:mysql://34.60.140.34:3306/mamacare-database-real?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+    username: root
+    password: ${GCP_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
-    database: postgresql
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    database: mysql
+    database-platform: org.hibernate.dialect.MySQLDialect
     show-sql: false
     hibernate:
       ddl-auto: update
@@ -25,7 +26,6 @@ application:
       expiration: 86400000
       refresh-token:
         expiration: 604800000
-
 
 cors:
   allowed-origins: 'http://localhost:19006'
