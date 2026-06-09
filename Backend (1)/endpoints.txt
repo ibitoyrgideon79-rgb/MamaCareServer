@@ -1,0 +1,528 @@
+================================================================================
+                    MAMACARE BACKEND API DOCUMENTATION
+================================================================================
+
+Base URL: http://localhost:8080/api/v1 (development)
+Server: Spring Boot REST API
+Database: MySQL
+Authentication: JWT Token-based
+CORS Allowed: http://localhost:19006
+
+================================================================================
+AUTHENTICATION REQUIREMENTS
+================================================================================
+
+All endpoints (except /auth/register and /auth/authenticate) require:
+  Authorization: Bearer <your_jwt_token>
+
+Token Details:
+  - Access Token Expiration: 24 hours (86400000 ms)
+  - Refresh Token Expiration: 7 days (604800000 ms)
+
+================================================================================
+API ENDPOINTS SUMMARY
+================================================================================
+
+1. AUTHENTICATION ENDPOINTS (/api/v1/auth)
+   - POST   /register              | Register new user (no auth required)
+   - POST   /authenticate          | Login with email/password (no auth required)
+   - POST   /refresh-token         | Refresh JWT tokens (no auth required)
+
+2. USER MANAGEMENT (/api/v1/users)
+   - PATCH  /                      | Change password (requires auth)
+
+3. PREGNANCY (/api/v1/pregnancy)
+   - POST   /setup                 | Setup pregnancy info (requires auth)
+   - GET    /me                    | Get current user's pregnancy info (requires auth)
+
+4. HOME/DASHBOARD (/api/v1/home)
+   - GET    /summary               | Get dashboard summary (requires auth)
+
+5. APPOINTMENTS (/api/v1/appointments)
+   - POST   /                      | Create appointment (requires auth)
+   - GET    /upcoming/next         | Get next upcoming appointment (requires auth)
+   - PATCH  /{appointmentId}/checklist/{itemId} | Update checklist item (requires auth)
+
+6. MEDICATIONS (/api/v1/medications)
+   - POST   /                      | Create medication reminder (requires auth)
+   - GET    /today                 | Get today's medications (requires auth)
+   - GET    /                      | Get all medications (requires auth)
+   - PATCH  /{medicationId}/taken  | Mark medication as taken (requires auth)
+   - PATCH  /{medicationId}/inactive | Deactivate medication (requires auth)
+
+7. WALK/FITNESS (/api/v1/walk-exercise)
+   - GET    /home                  | Get fitness dashboard (requires auth)
+   - POST   /sessions              | Start walk session (requires auth)
+   - PATCH  /sessions/{sessionId}/metrics | Sync metrics (requires auth)
+   - PATCH  /sessions/{sessionId}/complete | Complete session (requires auth)
+
+8. MANAGEMENT (/api/v1/management)
+   - GET    /                      | Demo endpoint
+   - POST   /                      | Demo endpoint
+   - PUT    /                      | Demo endpoint
+   - DELETE /                      | Demo endpoint
+
+9. ADMIN (/api/v1/admin) - ADMIN ROLE REQUIRED
+   - GET    /                      | Requires admin:read authority
+   - POST   /                      | Requires admin:create authority
+   - PUT    /                      | Requires admin:update authority
+   - DELETE /                      | Requires admin:delete authority
+
+================================================================================
+DETAILED ENDPOINT DOCUMENTATION
+================================================================================
+
+--- AUTHENTICATION ENDPOINTS ---
+
+1. POST /api/v1/auth/register
+   Description: Register a new user account
+   Authentication: NOT REQUIRED
+   Request Body:
+     {
+       "email": "user@example.com",
+       "password": "password123",
+       "firstName": "John",
+       "lastName": "Doe"
+     }
+   Response (200 OK):
+     {
+       "accessToken": "jwt_token_here",
+       "refreshToken": "refresh_token_here"
+     }
+
+2. POST /api/v1/auth/authenticate
+   Description: Login with email and password
+   Authentication: NOT REQUIRED
+   Request Body:
+     {
+       "email": "user@example.com",
+       "password": "password123"
+     }
+   Response (200 OK):
+     {
+       "accessToken": "jwt_token_here",
+       "refreshToken": "refresh_token_here"
+     }
+
+3. POST /api/v1/auth/refresh-token
+   Description: Refresh your access token
+   Authentication: NOT REQUIRED
+   Request: Include refresh token in Authorization header or cookies
+   Response (200 OK): New access and refresh tokens
+
+--- USER MANAGEMENT ---
+
+1. PATCH /api/v1/users/
+   Description: Change the current user's password
+   Authentication: REQUIRED
+   Request Body:
+     {
+       "currentPassword": "old_password",
+       "newPassword": "new_password",
+       "confirmationPassword": "new_password"
+     }
+   Response (200 OK): No body
+
+--- PREGNANCY MANAGEMENT ---
+
+1. POST /api/v1/pregnancy/setup
+   Description: Set up pregnancy information
+   Authentication: REQUIRED
+   Request Body:
+     {
+       "lastMenstrualPeriodDate": "2024-01-15",
+       "dueDate": "2024-10-22",
+       "weeksOfPregnancy": 8
+     }
+   Response (200 OK):
+     {
+       "weeksOfPregnancy": 8,
+       "daysOfPregnancy": 56,
+       "dueDate": "2024-10-22",
+       "lastMenstrualPeriodDate": "2024-01-15"
+     }
+
+2. GET /api/v1/pregnancy/me
+   Description: Get current user's pregnancy information
+   Authentication: REQUIRED
+   Response (200 OK):
+     {
+       "weeksOfPregnancy": 8,
+       "daysOfPregnancy": 56,
+       "dueDate": "2024-10-22",
+       "lastMenstrualPeriodDate": "2024-01-15"
+     }
+
+--- HOME/DASHBOARD ---
+
+1. GET /api/v1/home/summary
+   Description: Get dashboard summary data
+   Authentication: REQUIRED
+   Response (200 OK): HomeSummaryResponse (aggregated data from all features)
+
+--- APPOINTMENTS ---
+
+1. POST /api/v1/appointments/
+   Description: Create a new appointment
+   Authentication: REQUIRED
+   Request Body:
+     {
+       "title": "Doctor's Checkup",
+       "description": "Regular prenatal checkup",
+       "appointmentDate": "2024-06-15T10:00:00",
+       "appointmentType": "CHECKUP",
+       "reminderOffsets": ["PT_5_MINUTES", "PT_1_DAY"],
+       "checklistItems": [
+         {
+           "itemName": "Bring insurance card",
+           "isCompleted": false
+         }
+       ]
+     }
+   Response (201 CREATED):
+     {
+       "id": 1,
+       "title": "Doctor's Checkup",
+       "description": "Regular prenatal checkup",
+       "appointmentDate": "2024-06-15T10:00:00",
+       "appointmentType": "CHECKUP",
+       "status": "SCHEDULED",
+       "reminders": [],
+       "checklistItems": []
+     }
+   
+   Appointment Types: CHECKUP, ULTRASOUND, BLOOD_TEST, DELIVERY, FOLLOW_UP
+   Appointment Status: SCHEDULED, COMPLETED, CANCELLED, RESCHEDULED
+   Reminder Offsets: PT_5_MINUTES, PT_15_MINUTES, PT_30_MINUTES, PT_1_HOUR, PT_1_DAY, PT_3_DAYS
+
+2. GET /api/v1/appointments/upcoming/next
+   Description: Get next upcoming appointment
+   Authentication: REQUIRED
+   Response (200 OK):
+     {
+       "id": 1,
+       "title": "Doctor's Checkup",
+       "description": "Regular prenatal checkup",
+       "appointmentDate": "2024-06-15T10:00:00",
+       "appointmentType": "CHECKUP",
+       "daysUntilAppointment": 6,
+       "hoursUntilAppointment": 150
+     }
+
+3. PATCH /api/v1/appointments/{appointmentId}/checklist/{itemId}
+   Description: Update a checklist item's status
+   Authentication: REQUIRED
+   Path Parameters:
+     - appointmentId: The appointment ID
+     - itemId: The checklist item ID
+   Request Body:
+     {
+       "isCompleted": true
+     }
+   Response (200 OK):
+     {
+       "id": 1,
+       "itemName": "Bring insurance card",
+       "isCompleted": true
+     }
+
+--- MEDICATIONS ---
+
+1. POST /api/v1/medications/
+   Description: Create a new medication reminder
+   Authentication: REQUIRED
+   Request Body:
+     {
+       "medicationName": "Prenatal Vitamins",
+       "dosage": "1 tablet",
+       "frequency": "DAILY",
+       "dosageUnit": "tablet",
+       "quantity": 30,
+       "prescribedDate": "2024-01-01",
+       "reminderTime": "08:00:00",
+       "notes": "Take with food"
+     }
+   Response (201 CREATED):
+     {
+       "id": 1,
+       "medicationName": "Prenatal Vitamins",
+       "dosage": "1 tablet",
+       "frequency": "DAILY",
+       "dosageUnit": "tablet",
+       "quantity": 30,
+       "prescribedDate": "2024-01-01",
+       "reminderTime": "08:00:00",
+       "notes": "Take with food",
+       "isActive": true
+     }
+   
+   Frequencies: DAILY, TWICE_DAILY, THREE_TIMES_DAILY, FOUR_TIMES_DAILY, WEEKLY, BIWEEKLY, MONTHLY
+
+2. GET /api/v1/medications/today
+   Description: Get all medications due today
+   Authentication: REQUIRED
+   Response (200 OK):
+     {
+       "medicationsDueToday": [
+         {
+           "id": 1,
+           "medicationName": "Prenatal Vitamins",
+           "dosage": "1 tablet",
+           "reminderTime": "08:00:00",
+           "isTaken": false
+         }
+       ],
+       "totalMedicationsToday": 1,
+       "medicationsTakenToday": 0
+     }
+
+3. GET /api/v1/medications/
+   Description: Get all medications for current user
+   Authentication: REQUIRED
+   Response (200 OK): Array of MedicationResponse objects
+
+4. PATCH /api/v1/medications/{medicationId}/taken
+   Description: Mark a medication as taken for today
+   Authentication: REQUIRED
+   Path Parameters:
+     - medicationId: The medication ID
+   Response (200 OK):
+     {
+       "medicationId": 1,
+       "medicationName": "Prenatal Vitamins",
+       "isTaken": true,
+       "takenTime": "2024-06-09T08:30:00"
+     }
+
+5. PATCH /api/v1/medications/{medicationId}/inactive
+   Description: Deactivate a medication
+   Authentication: REQUIRED
+   Path Parameters:
+     - medicationId: The medication ID
+   Response (204 NO CONTENT): No body
+
+--- WALK/FITNESS EXERCISE ---
+
+1. GET /api/v1/walk-exercise/home
+   Description: Get fitness dashboard data
+   Authentication: REQUIRED
+   Response (200 OK):
+     {
+       "totalSteps": 25000,
+       "totalDistance": 18.5,
+       "caloriesBurned": 450,
+       "todaysSteps": 5000,
+       "weeklyGoal": 50000,
+       "weeklyProgress": 50.0,
+       "currentSession": null,
+       "recentSessions": []
+     }
+
+2. POST /api/v1/walk-exercise/sessions
+   Description: Start a new walk exercise session
+   Authentication: REQUIRED
+   Request Body (optional):
+     {
+       "goalSteps": 5000,
+       "goalDuration": 30
+     }
+   Response (201 CREATED):
+     {
+       "id": 1,
+       "startTime": "2024-06-09T10:00:00",
+       "endTime": null,
+       "duration": 0,
+       "steps": 0,
+       "distance": 0.0,
+       "calories": 0.0,
+       "goalSteps": 5000,
+       "goalDuration": 30,
+       "status": "IN_PROGRESS"
+     }
+
+3. PATCH /api/v1/walk-exercise/sessions/{sessionId}/metrics
+   Description: Update metrics during an active walk session
+   Authentication: REQUIRED
+   Path Parameters:
+     - sessionId: The session ID
+   Request Body:
+     {
+       "steps": 1200,
+       "distance": 0.9,
+       "calories": 85,
+       "duration": 10
+     }
+   Response (200 OK): Updated WalkSessionResponse object
+   
+   Session Status: IN_PROGRESS, COMPLETED, PAUSED, CANCELLED
+
+4. PATCH /api/v1/walk-exercise/sessions/{sessionId}/complete
+   Description: Complete a walk session with final metrics
+   Authentication: REQUIRED
+   Path Parameters:
+     - sessionId: The session ID
+   Request Body (optional):
+     {
+       "steps": 5500,
+       "distance": 4.1,
+       "calories": 450,
+       "duration": 35
+     }
+   Response (200 OK): Completed WalkSessionResponse object
+
+================================================================================
+HTTP STATUS CODES
+================================================================================
+
+200 OK                  - Request successful
+201 CREATED             - Resource created successfully
+204 NO CONTENT          - Successful operation with no response body
+400 BAD REQUEST         - Invalid request parameters
+401 UNAUTHORIZED        - Missing or invalid JWT token
+403 FORBIDDEN           - Insufficient permissions or invalid token
+404 NOT FOUND           - Resource not found
+409 CONFLICT            - Resource already exists or constraint violation
+500 INTERNAL ERROR      - Server-side error
+
+Error Response Format:
+  {
+    "timestamp": "2024-06-09T10:00:00",
+    "status": 400,
+    "error": "Bad Request",
+    "message": "Validation failed",
+    "details": "Invalid request parameters"
+  }
+
+================================================================================
+SECURITY HEADERS
+================================================================================
+
+Include the following when making authenticated requests:
+
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
+
+================================================================================
+EXAMPLE FRONTEND REQUESTS
+================================================================================
+
+1. REGISTER USER:
+   POST /api/v1/auth/register
+   Content-Type: application/json
+   
+   {
+     "email": "user@example.com",
+     "password": "password123",
+     "firstName": "John",
+     "lastName": "Doe"
+   }
+
+2. LOGIN:
+   POST /api/v1/auth/authenticate
+   Content-Type: application/json
+   
+   {
+     "email": "user@example.com",
+     "password": "password123"
+   }
+
+3. CREATE APPOINTMENT (with token):
+   POST /api/v1/appointments
+   Authorization: Bearer <jwt_token>
+   Content-Type: application/json
+   
+   {
+     "title": "Doctor's Checkup",
+     "description": "Regular prenatal checkup",
+     "appointmentDate": "2024-06-15T10:00:00",
+     "appointmentType": "CHECKUP",
+     "reminderOffsets": ["PT_5_MINUTES", "PT_1_DAY"],
+     "checklistItems": [
+       {
+         "itemName": "Bring insurance card",
+         "isCompleted": false
+       }
+     ]
+   }
+
+4. GET TODAY'S MEDICATIONS (with token):
+   GET /api/v1/medications/today
+   Authorization: Bearer <jwt_token>
+
+5. START WALK SESSION (with token):
+   POST /api/v1/walk-exercise/sessions
+   Authorization: Bearer <jwt_token>
+   Content-Type: application/json
+   
+   {
+     "goalSteps": 5000,
+     "goalDuration": 30
+   }
+
+================================================================================
+DATABASE INFORMATION
+================================================================================
+
+Type: MySQL
+Host: 34.60.140.34
+Port: 3306
+Database: mamacare-database-real
+Driver: MySQL JDBC Driver (com.mysql.cj.jdbc.Driver)
+
+Note: Database tables are automatically created/updated on application startup
+using Hibernate DDL auto (update mode).
+
+================================================================================
+CORS CONFIGURATION
+================================================================================
+
+Allowed Origins:
+  - http://localhost:19006
+
+For production deployment, update the CORS_ALLOWED_ORIGINS in application.yaml.
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+1. INVALID TOKEN
+   - Ensure JWT token is included in Authorization header
+   - Format: "Authorization: Bearer <token>"
+
+2. TOKEN EXPIRED
+   - Use /api/v1/auth/refresh-token to get a new access token
+   - Use the refresh token if access token has expired
+
+3. 403 FORBIDDEN
+   - Check that your user role/authorities match the endpoint requirements
+   - Some endpoints require specific roles (e.g., ADMIN)
+
+4. 404 NOT FOUND
+   - Verify the endpoint path is correct
+   - Check that the resource ID exists in the database
+
+5. 400 BAD REQUEST
+   - Verify all required fields are present in request body
+   - Check request body format matches expected DTO
+   - Validate date/time formats (use ISO format: YYYY-MM-DDTHH:mm:ss)
+
+6. CONNECTION REFUSED
+   - Verify the backend server is running
+   - Check the base URL matches your environment (localhost vs production)
+   - Verify network connectivity
+
+================================================================================
+ADDITIONAL NOTES
+================================================================================
+
+- No rate limiting is currently enforced
+- JWT tokens use HS256 (HMAC with SHA-256) algorithm
+- Passwords are hashed using bcrypt
+- All timestamps are in UTC
+- Date formats should use ISO 8601 (e.g., 2024-06-09T10:00:00)
+- All numeric fields should be sent without quotes (except for datetime fields)
+
+================================================================================
+LAST UPDATED: June 9, 2024
+API VERSION: v1
+================================================================================
