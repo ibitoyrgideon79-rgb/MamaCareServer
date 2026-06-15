@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import {
@@ -17,22 +18,65 @@ export default function SplashScreen() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const taglineFade = useRef(new Animated.Value(0)).current;
+  const taglineSlide = useRef(new Animated.Value(20)).current;
+  const loadingFade = useRef(new Animated.Value(0)).current;
+  const loadingSlide = useRef(new Animated.Value(10)).current;
 
   useEffect(() => {
+    // Main fade in
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 900,
       useNativeDriver: true,
     }).start();
+
+    // Tagline slides up after logo appears
+    Animated.sequence([
+      Animated.delay(600),
+      Animated.parallel([
+        Animated.timing(taglineFade, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(taglineSlide, {
+          toValue: 0,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    // Loading text fades in after tagline
+    Animated.sequence([
+      Animated.delay(1400),
+      Animated.parallel([
+        Animated.timing(loadingFade, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(loadingSlide, {
+          toValue: 0,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    // Progress bar
     Animated.timing(progressAnim, {
       toValue: 1,
       duration: SPLASH_DURATION,
       useNativeDriver: false,
     }).start();
+
+    // Pulse heart icon
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.3,
+          toValue: 1.4,
           duration: 600,
           useNativeDriver: true,
         }),
@@ -43,6 +87,7 @@ export default function SplashScreen() {
         }),
       ]),
     ).start();
+
     const timer = setTimeout(() => router.replace("/onboard"), SPLASH_DURATION);
     return () => clearTimeout(timer);
   }, []);
@@ -61,6 +106,7 @@ export default function SplashScreen() {
 
       <SafeAreaView style={styles.safeArea}>
         <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+
           {/* Logo */}
           <Image
             source={require("../assets/images/logo.png")}
@@ -68,10 +114,18 @@ export default function SplashScreen() {
             resizeMode="contain"
           />
 
-          {/* Tagline */}
-          <Text style={styles.tagline}>
+          {/* Tagline — animated */}
+          <Animated.Text
+            style={[
+              styles.tagline,
+              {
+                opacity: taglineFade,
+                transform: [{ translateY: taglineSlide }],
+              },
+            ]}
+          >
             Your trusted companion for a healthy{"\n"}pregnancy journey.
-          </Text>
+          </Animated.Text>
 
           {/* Dot divider */}
           <View style={styles.dots}>
@@ -89,24 +143,40 @@ export default function SplashScreen() {
             ))}
           </View>
 
-          {/* Hero image — woman holding baby */}
+          {/* Hero image */}
           <Image
             source={require("../assets/images/1.png")}
             style={styles.heroImage}
             resizeMode="contain"
           />
+
         </Animated.View>
 
         {/* Bottom loading */}
         <View style={styles.bottomSection}>
-          <Animated.Text
-            style={[styles.heart, { transform: [{ scale: pulseAnim }] }]}
+          {/* Pulsing green heart icon */}
+          <Animated.View
+            style={{
+              transform: [{ scale: pulseAnim }],
+              marginBottom: 8,
+            }}
           >
-            🤍
-          </Animated.Text>
-          <Text style={styles.loadingText}>
+            <Ionicons name="heart" size={22} color="#2D7A4F" />
+          </Animated.View>
+
+          {/* Loading text — animated */}
+          <Animated.Text
+            style={[
+              styles.loadingText,
+              {
+                opacity: loadingFade,
+                transform: [{ translateY: loadingSlide }],
+              },
+            ]}
+          >
             Preparing something amazing for you...
-          </Text>
+          </Animated.Text>
+
           <View style={styles.progressTrack}>
             <Animated.View
               style={[styles.progressBar, { width: progressWidth }]}
@@ -190,10 +260,6 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
     paddingHorizontal: 40,
     alignItems: "center",
-  },
-  heart: {
-    fontSize: 18,
-    marginBottom: 5,
   },
   loadingText: {
     fontSize: 12,
