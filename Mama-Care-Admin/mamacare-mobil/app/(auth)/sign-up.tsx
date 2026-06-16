@@ -28,12 +28,10 @@ export default function SignUpScreen() {
     firstName: "",
     lastName: "",
     email: "",
-    phone: "",
     password: "",
     confirmPassword: "",
   });
 
-  // ── Toast ────────────────────────────────────────────────
   const toastAnim = useRef(new Animated.Value(-100)).current;
   const [toastMsg, setToastMsg] = useState("");
 
@@ -50,7 +48,6 @@ export default function SignUpScreen() {
     Animated.timing(toastAnim, { toValue: -100, duration: 300, useNativeDriver: true }).start();
   };
 
-  // ── Validation ────────────────────────────────────────────
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
@@ -95,7 +92,6 @@ export default function SignUpScreen() {
     if (errors[key]) setErrors({ ...errors, [key]: "" });
   };
 
-  // ── Submit ────────────────────────────────────────────────
   const handleSignUp = async () => {
     if (!validate()) return;
     setLoading(true);
@@ -114,23 +110,11 @@ export default function SignUpScreen() {
       const data = await response.json();
 
       if (response.ok || response.status === 200 || response.status === 201) {
-        // // Save tokens (commented out — register no longer returns tokens)
-        // // await SecureStore.setItemAsync("accessToken", data.accessToken);
-        // // await SecureStore.setItemAsync("refreshToken", data.refreshToken);
-        // if (Platform.OS === 'web') {
-        //   localStorage.setItem("accessToken", data.accessToken);
-        //   localStorage.setItem("refreshToken", data.refreshToken);
-        // } else {
-        //   await SecureStore.setItemAsync("accessToken", data.accessToken);
-        //   await SecureStore.setItemAsync("refreshToken", data.refreshToken);
-        // }
-        // router.replace("/(onboarding)/welcome");
-
-        // OTP sent — navigate to verification screen
-        router.push({
-          pathname: "/(auth)/verify-otp",
-          params: { email: form.email.trim().toLowerCase() },
-        });
+        await SecureStore.setItemAsync("accessToken", data.accessToken);
+        await SecureStore.setItemAsync("refreshToken", data.refreshToken);
+        await SecureStore.setItemAsync("firstName", form.firstName.trim());
+        await SecureStore.setItemAsync("lastName", form.lastName.trim());
+        router.replace("/(onboarding)/welcome");
       } else if (response.status === 409) {
         setErrors({ email: "An account with this email already exists." });
         showToast("An account with this email already exists.");
@@ -142,10 +126,7 @@ export default function SignUpScreen() {
         showToast(data.message || "Something went wrong. Please try again.");
       }
     } catch (error: any) {
-      if (
-        error.message?.includes("Network request failed") ||
-        error.message?.includes("fetch")
-      ) {
+      if (error.message?.includes("Network request failed") || error.message?.includes("fetch")) {
         showToast("No connection. Please check your internet and try again.");
       } else if (error.message?.includes("timeout")) {
         showToast("Request timed out. Please try again.");
@@ -159,8 +140,7 @@ export default function SignUpScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
-
-      {/* Sliding Toast */}
+      {/* Toast */}
       <Animated.View style={{
         position: "absolute", top: 0, left: 0, right: 0, zIndex: 999,
         transform: [{ translateY: toastAnim }],
@@ -171,9 +151,7 @@ export default function SignUpScreen() {
         shadowOpacity: 0.2, shadowRadius: 8, elevation: 10,
       }}>
         <Ionicons name="alert-circle-outline" size={20} color="#fff" />
-        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", flex: 1 }}>
-          {toastMsg}
-        </Text>
+        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600", flex: 1 }}>{toastMsg}</Text>
         <TouchableOpacity onPress={dismissToast}>
           <Ionicons name="close" size={18} color="#fff" />
         </TouchableOpacity>
@@ -187,10 +165,7 @@ export default function SignUpScreen() {
         >
           {/* Back */}
           <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ width: 38, height: 38, justifyContent: "center" }}
-            >
+            <TouchableOpacity onPress={() => router.back()} style={{ width: 38, height: 38, justifyContent: "center" }}>
               <Ionicons name="arrow-back" size={24} color="#111" />
             </TouchableOpacity>
           </View>
@@ -205,9 +180,7 @@ export default function SignUpScreen() {
             </Text>
           </View>
 
-          {/* Fields */}
           <View style={{ paddingHorizontal: 24, gap: 14 }}>
-
             <Field
               icon="person-outline"
               placeholder="First name"
@@ -215,7 +188,6 @@ export default function SignUpScreen() {
               onChangeText={(v: string) => setField("firstName", v)}
               error={errors.firstName}
             />
-
             <Field
               icon="person-outline"
               placeholder="Last name"
@@ -223,7 +195,6 @@ export default function SignUpScreen() {
               onChangeText={(v: string) => setField("lastName", v)}
               error={errors.lastName}
             />
-
             <Field
               icon="mail-outline"
               placeholder="Email address"
@@ -233,7 +204,6 @@ export default function SignUpScreen() {
               autoCapitalize="none"
               error={errors.email}
             />
-
             <PasswordField
               placeholder="Create password"
               value={form.password}
@@ -242,7 +212,6 @@ export default function SignUpScreen() {
               onToggle={() => setShowPassword(!showPassword)}
               error={errors.password}
             />
-
             <PasswordField
               placeholder="Confirm password"
               value={form.confirmPassword}
@@ -285,8 +254,7 @@ export default function SignUpScreen() {
               disabled={loading}
               style={{
                 backgroundColor: loading ? "#7AAF90" : "#2D7A4F",
-                borderRadius: 14, paddingVertical: 17,
-                alignItems: "center", marginTop: 4,
+                borderRadius: 14, paddingVertical: 17, alignItems: "center", marginTop: 4,
                 shadowColor: "#2D7A4F", shadowOffset: { width: 0, height: 6 },
                 shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
               }}
@@ -304,20 +272,17 @@ export default function SignUpScreen() {
               <View style={{ flex: 1, height: 1, backgroundColor: "#F0F0F0" }} />
             </View>
 
-            {/* Social */}
             <View style={{ flexDirection: "row", gap: 12 }}>
               <SocialBtn label="Google" icon="logo-google" />
               <SocialBtn label="Apple" icon="logo-apple" />
             </View>
 
-            {/* Log in */}
             <View style={{ flexDirection: "row", justifyContent: "center", marginTop: 4 }}>
               <Text style={{ color: "#999", fontSize: 14 }}>Already have an account? </Text>
               <TouchableOpacity onPress={() => router.push("/(auth)/sign-in")}>
                 <Text style={{ color: "#2D7A4F", fontWeight: "700", fontSize: 14 }}>Log in</Text>
               </TouchableOpacity>
             </View>
-
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
