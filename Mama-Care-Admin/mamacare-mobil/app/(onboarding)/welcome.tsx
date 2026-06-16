@@ -58,12 +58,12 @@ export default function WelcomeScreen() {
 
         {/* Title */}
         <View style={{ paddingHorizontal: 24, marginTop: 16, marginBottom: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <Text style={{ fontSize: 26, fontWeight: "800", color: "#111" }}>
-              Welcome to MamaCare
-            </Text>
-            <Text style={{ fontSize: 22 }}>💚</Text>
-          </View>
+         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <Text style={{ fontSize: 26, fontWeight: "800", color: "#111" }}>
+                Welcome to MamaCare
+              </Text>
+              <Ionicons name="heart" size={22} color="#2D7A4F" />
+            </View>
           <Text style={{ fontSize: 14, color: "#777", lineHeight: 21 }}>
             Your trusted pregnancy companion, designed for Nigerian Mamas.
           </Text>
