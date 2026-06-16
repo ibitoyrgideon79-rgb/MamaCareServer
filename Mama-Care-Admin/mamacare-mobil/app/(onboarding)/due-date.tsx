@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import {
   View, Text, Image, TouchableOpacity,
-  ScrollView, TextInput, Platform, Modal, Dimensions,
+  ScrollView, TextInput, Modal, Dimensions,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
 
 const { width } = Dimensions.get("window");
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function DueDateScreen() {
   const { mode } = useLocalSearchParams<{ mode: string }>();
@@ -16,22 +18,21 @@ export default function DueDateScreen() {
   const [date, setDate] = useState("");
   const [error, setError] = useState("");
   const [showPicker, setShowPicker] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Simple date picker state
   const [pickerMonth, setPickerMonth] = useState(new Date().getMonth());
   const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
   const [pickerDay, setPickerDay] = useState(new Date().getDate());
 
   const months = [
     "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
+    "July","August","September","October","November","December",
   ];
 
   const getDaysInMonth = (month: number, year: number) =>
     new Date(year, month + 1, 0).getDate();
 
   const handleDateInput = (text: string) => {
-    // Auto format as mm/dd/yyyy
     const cleaned = text.replace(/\D/g, "");
     let formatted = cleaned;
     if (cleaned.length >= 3) formatted = cleaned.slice(0, 2) + "/" + cleaned.slice(2);
@@ -48,6 +49,13 @@ export default function DueDateScreen() {
     setError("");
   };
 
+  // Convert mm/dd/yyyy to yyyy-MM-dd for API
+  const toISODate = (mmddyyyy: string) => {
+    const parts = mmddyyyy.split("/");
+    if (parts.length !== 3) return null;
+    return `${parts[2]}-${parts[0]}-${parts[1]}`;
+  };
+
   const validate = () => {
     if (!date.trim()) {
       setError(isLMP ? "Please enter your last menstrual period date." : "Please enter your expected due date.");
@@ -61,9 +69,50 @@ export default function DueDateScreen() {
     return true;
   };
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!validate()) return;
-    router.replace("/(tabs)/home");
+    setLoading(true);
+    try {
+      const token = await SecureStore.getItemAsync("accessToken");
+      const isoDate = toISODate(date);
+
+      // Build pregnancy setup payload
+      const payload: any = {};
+      if (isLMP) {
+        payload.lastMenstrualPeriodDate = isoDate;
+      } else {
+        payload.dueDate = isoDate;
+      }
+
+      const response = await fetch(`${BASE_URL}/api/v1/pregnancy/setup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok || response.status === 200) {
+        const data = await response.json();
+        // Save pregnancy info locally
+        await SecureStore.setItemAsync("dateMode", mode || "due_date");
+        await SecureStore.setItemAsync("dateValue", date);
+        await SecureStore.setItemAsync("pregnancyWeeks", String(data.weeksOfPregnancy || 0));
+        await SecureStore.setItemAsync("dueDate", data.dueDate || "");
+      } else {
+        // Save locally even if API fails — will sync later
+        await SecureStore.setItemAsync("dateMode", mode || "due_date");
+        await SecureStore.setItemAsync("dateValue", date);
+      }
+    } catch (e) {
+      // Save locally if no connection
+      await SecureStore.setItemAsync("dateMode", mode || "due_date");
+      await SecureStore.setItemAsync("dateValue", date);
+    } finally {
+      setLoading(false);
+      router.replace("/(tabs)/home");
+    }
   };
 
   const days = Array.from({ length: getDaysInMonth(pickerMonth, pickerYear) }, (_, i) => i + 1);
@@ -94,8 +143,7 @@ export default function DueDateScreen() {
         <View style={{ alignItems: "center", marginTop: 10 }}>
           <View style={{
             width: 110, height: 110, borderRadius: 55,
-            backgroundColor: "#F0FAF4",
-            alignItems: "center", justifyContent: "center",
+            backgroundColor: "#F0FAF4", alignItems: "center", justifyContent: "center",
           }}>
             <Image
               source={require("../../assets/images/8.png")}
@@ -132,18 +180,14 @@ export default function DueDateScreen() {
           <Text style={{ fontSize: 13, fontWeight: "600", color: "#444", marginBottom: 10 }}>
             {isLMP ? "Last Menstrual Period Date" : "Expected Due Date"}
           </Text>
-
           <TouchableOpacity
             onPress={() => setShowPicker(true)}
             style={{
-              flexDirection: "row",
-              alignItems: "center",
+              flexDirection: "row", alignItems: "center",
               borderWidth: 1.5,
               borderColor: error ? "#E53935" : "#EFEFEF",
-              borderRadius: 12,
-              backgroundColor: "#FAFAFA",
-              paddingHorizontal: 16,
-              height: 54,
+              borderRadius: 12, backgroundColor: "#FAFAFA",
+              paddingHorizontal: 16, height: 54,
               justifyContent: "space-between",
             }}
           >
@@ -158,7 +202,6 @@ export default function DueDateScreen() {
             />
             <Ionicons name="calendar-outline" size={20} color="#2D7A4F" />
           </TouchableOpacity>
-
           {error ? (
             <Text style={{ color: "#E53935", fontSize: 12, marginTop: 6, marginLeft: 2 }}>
               {error}
@@ -170,35 +213,26 @@ export default function DueDateScreen() {
         <View style={{ paddingHorizontal: 24, marginTop: 40, gap: 12 }}>
           <TouchableOpacity
             onPress={handleStart}
+            disabled={loading}
             style={{
-              backgroundColor: "#2D7A4F",
-              borderRadius: 14,
-              paddingVertical: 17,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              shadowColor: "#2D7A4F",
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.3,
-              shadowRadius: 12,
-              elevation: 6,
+              backgroundColor: loading ? "#7AAF90" : "#2D7A4F",
+              borderRadius: 14, paddingVertical: 17,
+              flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+              shadowColor: "#2D7A4F", shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
             }}
           >
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
-              Start My Journey
+              {loading ? "Saving..." : "Start My Journey"}
             </Text>
-            <Ionicons name="heart-outline" size={18} color="#fff" />
+            {!loading && <Ionicons name="heart-outline" size={18} color="#fff" />}
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => router.replace("/(tabs)/home")}
             style={{
-              borderRadius: 14,
-              paddingVertical: 17,
-              alignItems: "center",
-              borderWidth: 1.5,
-              borderColor: "#2D7A4F",
+              borderRadius: 14, paddingVertical: 17, alignItems: "center",
+              borderWidth: 1.5, borderColor: "#2D7A4F",
             }}
           >
             <Text style={{ color: "#2D7A4F", fontWeight: "600", fontSize: 16 }}>
@@ -210,10 +244,7 @@ export default function DueDateScreen() {
 
       {/* Date Picker Modal */}
       <Modal visible={showPicker} transparent animationType="slide">
-        <View style={{
-          flex: 1, backgroundColor: "rgba(0,0,0,0.4)",
-          justifyContent: "flex-end",
-        }}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
           <View style={{
             backgroundColor: "#fff", borderTopLeftRadius: 24,
             borderTopRightRadius: 24, padding: 24,
@@ -222,7 +253,6 @@ export default function DueDateScreen() {
               Select Date
             </Text>
 
-            {/* Month */}
             <Text style={{ fontSize: 12, fontWeight: "600", color: "#888", marginBottom: 8 }}>Month</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
               <View style={{ flexDirection: "row", gap: 8 }}>
@@ -243,7 +273,6 @@ export default function DueDateScreen() {
               </View>
             </ScrollView>
 
-            {/* Day */}
             <Text style={{ fontSize: 12, fontWeight: "600", color: "#888", marginBottom: 8 }}>Day</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
               <View style={{ flexDirection: "row", gap: 8 }}>
@@ -257,15 +286,12 @@ export default function DueDateScreen() {
                       alignItems: "center", justifyContent: "center",
                     }}
                   >
-                    <Text style={{ color: pickerDay === d ? "#fff" : "#555", fontWeight: "600" }}>
-                      {d}
-                    </Text>
+                    <Text style={{ color: pickerDay === d ? "#fff" : "#555", fontWeight: "600" }}>{d}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </ScrollView>
 
-            {/* Year */}
             <Text style={{ fontSize: 12, fontWeight: "600", color: "#888", marginBottom: 8 }}>Year</Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 24 }}>
               {years.map((y) => (
@@ -278,20 +304,14 @@ export default function DueDateScreen() {
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ color: pickerYear === y ? "#fff" : "#555", fontWeight: "600" }}>
-                    {y}
-                  </Text>
+                  <Text style={{ color: pickerYear === y ? "#fff" : "#555", fontWeight: "600" }}>{y}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* Confirm */}
             <TouchableOpacity
               onPress={confirmPickerDate}
-              style={{
-                backgroundColor: "#2D7A4F", borderRadius: 14,
-                paddingVertical: 15, alignItems: "center",
-              }}
+              style={{ backgroundColor: "#2D7A4F", borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
             >
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Confirm</Text>
             </TouchableOpacity>
